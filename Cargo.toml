@@ -1,0 +1,169 @@
+[package]
+name = "foldex"
+version = "0.9.0"
+edition = "2021"
+description = "Foldex – schneller, RAM-sparsamer Datei-Explorer"
+
+[features]
+default = ["rar"]
+rar = ["dep:unrar"] # RAR-Entpacken (benötigt einen C++-Compiler beim Bauen)
+
+[dependencies]
+# glow = OpenGL-Rendering auf der GPU (wenig RAM). Für Vulkan/DX12/Metal: "glow" -> "wgpu".
+eframe = { version = "0.29", default-features = false, features = [
+    "glow",
+    "default_fonts",
+    "x11",
+    "wayland",
+] }
+rayon = "1"
+memchr = "2"
+memmap2 = "0.9"
+trash = "5"
+open = "5"
+dirs = "5"
+chrono = { version = "0.4", default-features = false, features = [
+    "clock",
+    "std",
+] }
+
+# Icons: Material-Icon-Theme (SVG, im Programm eingebettet) → Texturen
+resvg = { version = "0.45", default-features = false }
+# Text-Werkzeug im Bildeditor (dieselbe Schrift-Bibliothek, die egui schon nutzt) – alle Systeme
+ab_glyph = "0.2"
+include_dir = "0.7"
+fs4 = "0.13"
+
+# Entpacker / Packer
+zip = { version = "2", default-features = false, features = [
+    "deflate",
+    "deflate64",
+    "bzip2",
+    "zstd",
+] }
+tar = "0.4"
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
+bzip2 = "0.5"
+xz2 = "0.1"
+zstd = "0.13"
+sevenz-rust = "0.6"
+unrar = { version = "0.5", optional = true }
+
+# Themes und Einstellungs-Export als JSON; Datei-Dialoge für Import/Export
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rfd = "0.15"
+portable-pty = "0.9"
+vt100 = "0.15"
+regex = "1"
+ureq = "2"
+image = { version = "0.25", default-features = false, features = [
+    "png",
+    "jpeg",
+    "gif",
+    "bmp",
+    "ico",
+    "webp",
+    "tiff",
+    "tga",
+    "pnm",
+    "qoi",
+    "hdr",
+] }
+# Audio-Wiedergabe im Vorschau-Player (MP3, FLAC, WAV, AAC/M4A direkt; alles andere über ffmpeg)
+rodio = { version = "0.19", default-features = false, features = [
+    "symphonia-all",
+] }
+# Teilen über LocalSend: Geräte im Netz finden (Multicast) und per HTTPS senden (Zertifikat per Fingerabdruck geprüft)
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+sha2 = "0.10"
+socket2 = { version = "0.5", features = ["all"] }
+# Syntaxfarben in der Vorschau: Sublime-Grammatiken für rund 200 Sprachen (reines Rust, ohne C-Bibliothek)
+syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy", "dump-load"] }
+two-face = { version = "0.4", default-features = false, features = ["syntect-fancy"] }
+# Lokale KI im Bildeditor (Freistellen, Objekte auswählen, Kolorieren): ONNX Runtime wird erst bei Bedarf
+# geladen (DLL im Konfigurationsordner), daher keine Bibliothek beim Bauen
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "load-dynamic"] }
+
+[build-dependencies]
+# rendert assets/app.svg zum EXE-Icon (Windows)
+resvg = { version = "0.45", default-features = false }
+embed-resource = "3"
+
+# Systemicons (Windows: IShellItemImageFactory, macOS: NSWorkspace)
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+file_icon_provider = "1"
+
+# Globale Mausposition, damit ein gezogener Tab auch außerhalb des Fensters verfolgt wird
+# (Windows nutzt dafür direkt GetCursorPos)
+[target.'cfg(target_os = "macos")'.dependencies]
+device_query = "2"
+
+# Drag & Drop aus dem Fenster heraus (z. B. auf den Desktop)
+[target.'cfg(windows)'.dependencies]
+clipboard-win = "5"
+drag = "2"
+raw-window-handle = "0.6"
+windows = { version = "0.62.2", features = [
+    "Win32_UI_Shell",
+    "Win32_System_Com",
+    "Win32_Graphics_Gdi",
+    # PDF-Seiten mit dem in Windows eingebauten Renderer (Windows.Data.Pdf)
+    "Data_Pdf",
+    # WhatsApp ohne Link: Datei über das Windows-Teilen an WhatsApps Chat-Auswahl geben
+    "ApplicationModel_DataTransfer",
+    "Foundation_Collections",
+    # im Windows-Teilen automatisch WhatsApp wählen (UI-Automation)
+    "Win32_UI_Accessibility",
+    "Win32_System_Variant",
+    "Win32_System_Ole",
+    "std",
+    # Text aus PDF-Seiten kopieren, wenn pdftotext fehlt (Texterkennung von Windows)
+    "Media_Ocr",
+    "Graphics_Imaging",
+    "Foundation",
+    "Storage",
+    "Storage_Streams",
+] }
+# IIterable aus einer Liste (Dateien für das Windows-Teilen)
+windows-collections = "0.3"
+windows-sys = { version = "0.59", features = [
+    "Win32_Graphics_Gdi",
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Security_Cryptography",
+    "Win32_System_RestartManager",
+    "Win32_System_LibraryLoader",
+    # Teilen-Fenster: wirklich zu sehen oder von Windows verborgen („cloaked“)?
+    "Win32_Graphics_Dwm",
+    # lokale Modell-Server enden mit Foldex (Job-Objekt)
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+    # Grafikspeicher und RAM: welche lokalen Modelle passen
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    # gestartete Modell-Programme: kein Windows-Fehlerfenster bei fehlender DLL
+    "Win32_System_Diagnostics_Debug",
+    # echtes Papierkorb-Symbol (SHGetStockIconInfo)
+    "Win32_UI_Shell",
+    # Cloud: Laufwerksnamen (Google Drive, pCloud), Sync-Attribute behalten/freigeben
+    "Win32_Storage_FileSystem",
+    # Cloud: läuft das Programm des Anbieters (OneDrive, Dropbox …)?
+    "Win32_System_Diagnostics_ToolHelp",
+    # Cloud: hängenden Laufwerkszugriff der Oberfläche abbrechen (CancelSynchronousIo)
+    "Win32_System_IO",
+    # Drucken von PDF und Bildern ohne Druckprogramm: Druckdialog und Druckauftrag (GDI)
+    "Win32_UI_Controls_Dialogs",
+    "Win32_Storage_Xps",
+    # Drucker auflisten, Ausrichtung/Farbe einstellen (Foldex-Druckfenster)
+    "Win32_Graphics_Printing",
+] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

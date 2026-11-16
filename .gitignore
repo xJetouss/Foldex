@@ -1,0 +1,21 @@
+# ========================================
+# Zu ignorierende Dateien und Ordner (Build, Cache, Konfig)
+# ========================================
+# Build-Artefakte und Dependencies (Rust)
+target/
+
+# Editoren-Konfiguration
+.vscode/
+.idea/
+.claude/
+
+# Umgebungsvariablen und Logs
+.env
+*.log
+
+# Betriebssystem-Dateien
+Thumbs.db
+desktop.ini
+.DS_Store
+Plan.txt
+Cargo.lock
