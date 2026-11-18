@@ -328,6 +328,27 @@ fn load(p: &Path) -> Data {
     }
     let ext = convert::ext_of(p);
     let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    // Schnellansicht: Schriften, 3D-Modelle, Office-Dokumente
+    match ext.as_str() {
+        "ttf" | "otf" | "ttc" => {
+            return match crate::quicklook::font_specimen(p) {
+                Ok((img, info)) => Data::Image(img, info),
+                Err(e) => Data::Error(e),
+            }
+        }
+        "obj" | "stl" | "glb" | "gltf" if md.len() < 400 << 20 => {
+            return match crate::quicklook::load_model(p, &ext) {
+                Ok(t) => Data::Image(crate::quicklook::render_model(&t, 900, 680, 35.0, 22.0, [90, 150, 255]), crate::quicklook::model_info(&t)),
+                Err(e) => Data::Error(e),
+            }
+        }
+        "docx" | "odt" | "rtf" | "epub" | "xlsx" | "pptx" | "odp" => {
+            if let Some(md) = crate::quicklook::office_markdown(p, &ext) {
+                return Data::Text(md, "md".into(), false);
+            }
+        }
+        _ => {}
+    }
     match convert::class(&ext) {
         Class::Image => match convert::load_image(p, 1200) {
             Ok(img) => {
@@ -732,7 +753,7 @@ impl Preview {
                                 self.wave = Some(media::Waveform::start(&p, &ctx));
                             }
                         }
-                        Data::Text(t, ext, _) if !matches!(ext.as_str(), "md" | "markdown") => {
+                        Data::Text(t, ext, _) if !matches!(ext.as_str(), "md" | "markdown") && !plain_text(ext) => {
                             // Syntaxfarben im Hintergrund berechnen; der Name bestimmt die Sprache
                             let name = p.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
                             self.hl = Some(crate::syntax::Highlight::start(Arc::from(t.as_str()), &name, &ctx));
@@ -1249,9 +1270,18 @@ pub(crate) const KEYWORDS: &[&str] = &[
 
 /// Sehr einfache, sprachübergreifende Hervorhebung: Kommentare, Zeichenketten, Zahlen, Schlüsselwörter,
 /// Funktionsaufrufe und großgeschriebene Typen.
+/// reiner Text: keine Farben (sonst würden Wörter, Zahlen und Anführungszeichen wie Code eingefärbt)
+pub(crate) fn plain_text(ext: &str) -> bool {
+    matches!(ext, "txt" | "text" | "log" | "nfo" | "out" | "me" | "")
+}
+
 pub(crate) fn highlight(line: &str, ext: &str, th: &Theme, font: &FontId) -> egui::text::LayoutJob {
     let mut job = egui::text::LayoutJob::default();
     let fmt = |c: Color32| egui::TextFormat::simple(font.clone(), c);
+    if plain_text(ext) {
+        job.append(line, 0.0, fmt(th.ed_text));
+        return job;
+    }
     let hash_comment = matches!(ext, "py" | "sh" | "bash" | "toml" | "yaml" | "yml" | "rb" | "ps1" | "conf" | "ini" | "env" | "gitignore" | "r");
     let chars: Vec<char> = line.chars().collect();
     let mut i = 0;

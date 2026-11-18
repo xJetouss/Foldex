@@ -42,6 +42,22 @@ pub struct Env<'a> {
 }
 
 /// Was der Explorer nach einer Aktion tun soll.
+/// Stil-Vorlagen im Bild-Modus: (Name, Zusatz zum Prompt, negativer Prompt)
+pub const STYLES: &[(&str, &str, &str)] = &[
+    ("Foto", "professional photograph, natural light, sharp focus, 35mm, high detail, realistic skin texture", "illustration, painting, drawing, cartoon, anime, 3d render, cgi, oversaturated, blurry, deformed, lowres"),
+    ("Anime", "anime style, cel shading, clean line art, vibrant colors, studio anime key visual", "photo, realistic, 3d render, photorealistic, blurry, deformed hands, lowres, watermark"),
+    ("Ölgemälde", "oil painting on canvas, visible brush strokes, rich texture, classical fine art, warm palette", "photo, digital art, 3d render, flat colors, text, watermark, blurry"),
+    ("Aquarell", "watercolor painting, soft washes, paper texture, delicate pigments, loose brushwork", "photo, 3d render, harsh lines, dark, oversaturated, text, watermark"),
+    ("Logo", "minimal flat vector logo, simple geometric shapes, centered, plain white background, bold, scalable icon", "photo, realistic, gradient mess, cluttered background, many details, text artifacts, blurry, 3d"),
+    ("Pixel-Art", "pixel art, 16-bit retro game sprite, limited color palette, crisp pixels, no anti-aliasing", "photo, realistic, smooth gradients, blurry, high resolution detail, 3d render"),
+    ("3D", "3d render, octane, soft studio lighting, subsurface scattering, highly detailed, depth of field", "photo, flat, 2d, sketch, drawing, lowres, noisy"),
+    ("Comic", "comic book style, bold ink outlines, halftone shading, dynamic composition, vivid flat colors", "photo, realistic, 3d render, blurry, muted colors"),
+    ("Skizze", "pencil sketch, graphite on paper, cross-hatching, hand drawn, monochrome", "color, photo, 3d render, digital painting, blurry"),
+    ("Kino", "cinematic film still, anamorphic lens, dramatic lighting, color graded, shallow depth of field", "cartoon, anime, illustration, flat lighting, lowres, overexposed"),
+    ("Fantasy", "epic fantasy concept art, magical atmosphere, intricate details, volumetric light, matte painting", "photo, mundane, lowres, blurry, text, watermark"),
+    ("Isometrisch", "isometric illustration, clean vector style, soft pastel colors, miniature diorama", "photo, perspective distortion, realistic, blurry, cluttered"),
+];
+
 pub enum AiOut {
     /// Änderung in den Rückgängig-Verlauf aufnehmen und Ansichten auffrischen
     Done(Op),
@@ -183,6 +199,10 @@ pub struct ChatView {
     // Modus „Bild“: lokales Bildmodell statt Sprachmodell
     pub image: bool,
     img_model: Option<crate::localllm::ImgChoice>,
+    /// gewählter Eintrag in der Kurzbefehl-Liste
+    skill_sel: usize,
+    /// Stil-Vorlage im Bild-Modus (Index in `STYLES`)
+    img_style: Option<usize>,
     img_job: Option<(crate::localai::Progress, Receiver<Result<Vec<PathBuf>, String>>)>,
     thumbs: std::cell::RefCell<HashMap<PathBuf, Option<egui::TextureHandle>>>,
     /// Spracheingabe neben „Senden“
@@ -302,6 +322,8 @@ impl ChatView {
             hist_rename: None,
             image: false,
             img_model: None,
+            skill_sel: 0,
+            img_style: None,
             img_job: None,
             thumbs: Default::default(),
             mic: crate::stt::Mic::default(),
@@ -516,6 +538,16 @@ impl ChatView {
     }
 
     /// Dateien anhängen (aus der Dateiliste oder dem Windows-Explorer gezogen)
+    /// nur für Bildschirmfotos: Eingabe und Stil-Vorlage setzen
+    pub fn dev_set(&mut self, input: Option<String>, style: Option<usize>) {
+        if let Some(i) = input {
+            self.input = i;
+        }
+        if style.is_some() {
+            self.img_style = style;
+        }
+    }
+
     pub fn attach(&mut self, paths: Vec<PathBuf>) {
         for p in paths.into_iter().filter(|p| p.is_file()) {
             if !self.attach.contains(&p) {
@@ -609,6 +641,10 @@ impl ChatView {
         let mut text = self.input.trim().to_string();
         if text.is_empty() || self.running() || self.pending() {
             return;
+        }
+        // Kurzbefehl („/commit“, „/erklären …“) → fester Prompt
+        if let Some(p) = crate::skills::expand(&text) {
+            text = p;
         }
         self.input.clear();
         let attach = std::mem::take(&mut self.attach);
@@ -1291,8 +1327,13 @@ impl ChatView {
     /// Bild aus Text erzeugen (Hintergrund), gespeichert im aktuellen Ordner
     fn image_generate(&mut self, prompt: String, count: u32, env: &Env, ctx: &egui::Context) {
         let Some(model) = self.img_model.clone() else { return };
-        let (size, steps, cfg, _) = crate::localllm::choice_settings(&model);
-        let req = crate::localllm::GenReq { model, prompt, negative: String::new(), w: size, h: size, steps, cfg, seed: (now() as i64 * 7919 + rand_u16() as i64) % 2_147_483_647, count };
+        let (size, steps, cfg, neg_ok) = crate::localllm::choice_settings(&model);
+        // Stil-Vorlage: Prompt ergänzen, passender negativer Prompt (nur bei Modellen, die ihn nutzen)
+        let (prompt, negative) = match self.img_style.and_then(|i| STYLES.get(i)) {
+            Some((_, add, neg)) => (format!("{prompt}, {add}"), if neg_ok { neg.to_string() } else { String::new() }),
+            None => (prompt, String::new()),
+        };
+        let req = crate::localllm::GenReq { model, prompt, negative, w: size, h: size, steps, cfg, seed: (now() as i64 * 7919 + rand_u16() as i64) % 2_147_483_647, count };
         let dir = env.cwd.to_path_buf();
         self.start_img_job(ctx, move |p| crate::localllm::generate(&req, &dir, p));
     }
@@ -1305,6 +1346,10 @@ impl ChatView {
         };
         let dir = env.cwd.to_path_buf();
         let seed = (now() as i64 * 7919 + rand_u16() as i64) % 2_147_483_647;
+        let prompt = match self.img_style.and_then(|i| STYLES.get(i)) {
+            Some((_, add, _)) => format!("{prompt}, {add}"),
+            None => prompt,
+        };
         self.start_img_job(ctx, move |p| {
             let img = image::open(&reference).map_err(|e| format!("Vorlage: {e}"))?.to_rgba8();
             let out = crate::localllm::edit_image(m, &img, &prompt, seed, p)?;
@@ -1386,7 +1431,7 @@ impl ChatView {
             });
             return;
         }
-        let input_h = if self.attach.is_empty() { 112.0 } else { 158.0 };
+        let input_h = if self.attach.is_empty() { 140.0 } else { 186.0 };
         let list_h = (ui.available_height() - input_h).max(80.0);
         let mut suggestion: Option<String> = None;
         let mut open: Option<PathBuf> = None;
@@ -1469,7 +1514,22 @@ impl ChatView {
         let w = area.width().min(844.0);
         let x0 = area.center().x - w / 2.0;
         let strip = !self.attach.is_empty();
-        let frame_rect = Rect::from_min_size(pos2(x0 + 12.0, area.top() + 8.0), vec2(w - 24.0, if strip { 122.0 } else { 76.0 }));
+        // Stil-Vorlagen (optional): ein Klick wählt, ein zweiter hebt die Wahl auf
+        let chips = Rect::from_min_size(pos2(x0 + 12.0, area.top() + 4.0), vec2(w - 24.0, 26.0));
+        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(chips), |ui| {
+            egui::ScrollArea::horizontal().id_salt("img_styles").scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden).show(ui, |ui| ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.label(egui::RichText::new("Stil").size(12.0).color(th.sub));
+                for (i, (name, add, _)) in STYLES.iter().enumerate() {
+                    let on = self.img_style == Some(i);
+                    let b = egui::Button::new(egui::RichText::new(*name).size(12.0).color(if on { th.on_accent() } else { th.text })).fill(if on { th.accent } else { th.field }).stroke(Stroke::new(1.0, if on { th.accent } else { th.line })).rounding(Rounding::same(11.0));
+                    if ui.add(b).on_hover_text(format!("Ergänzt den Prompt um: {add}")).clicked() {
+                        self.img_style = if on { None } else { Some(i) };
+                    }
+                }
+            }));
+        });
+        let frame_rect = Rect::from_min_size(pos2(x0 + 12.0, area.top() + 36.0), vec2(w - 24.0, if strip { 122.0 } else { 76.0 }));
         ui.allocate_new_ui(egui::UiBuilder::new().max_rect(frame_rect), |ui| {
             egui::Frame::none()
                 .fill(th.field)
@@ -1819,6 +1879,53 @@ impl ChatView {
         let x0 = area.center().x - w / 2.0;
         let strip = !self.attach.is_empty();
         let frame_rect = Rect::from_min_size(pos2(x0 + 12.0, area.top() + 8.0), vec2(w - 24.0, if strip { 122.0 } else { 76.0 }));
+        // Kurzbefehle: „/“ tippen zeigt die passenden; ↑/↓ wählen, Enter/Tab übernimmt
+        let skills = if can { crate::skills::matching(&self.input) } else { Vec::new() };
+        let mut take_skill: Option<String> = None;
+        if !skills.is_empty() {
+            self.skill_sel = self.skill_sel.min(skills.len() - 1);
+            let (down, up, tab) = ui.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown), i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp), i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)));
+            if down {
+                self.skill_sel = (self.skill_sel + 1) % skills.len();
+            }
+            if up {
+                self.skill_sel = (self.skill_sel + skills.len() - 1) % skills.len();
+            }
+            if tab {
+                take_skill = Some(skills[self.skill_sel].name.clone());
+            }
+            let rows = skills.len().min(8);
+            let h = rows as f32 * 34.0 + 34.0;
+            egui::Area::new(egui::Id::new(("ai_skills", &self.chat_id))).order(egui::Order::Foreground).fixed_pos(pos2(frame_rect.left(), frame_rect.top() - h - 6.0)).show(ui.ctx(), |ui| {
+                egui::Frame::popup(ui.style()).fill(th.panel).show(ui, |ui| {
+                    ui.set_width(frame_rect.width() - 16.0);
+                    egui::ScrollArea::vertical().max_height(rows as f32 * 34.0).show(ui, |ui| {
+                        for (i, s) in skills.iter().enumerate() {
+                            let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
+                            let sel = i == self.skill_sel;
+                            if sel || resp.hovered() {
+                                ui.painter().rect_filled(r, 6.0, if sel { th.sel } else { th.hover });
+                            }
+                            if sel && (down || up) {
+                                ui.scroll_to_rect(r, None);
+                            }
+                            let g = ui.painter().layout_no_wrap(format!("/{}", s.name), egui::FontId::monospace(13.0), th.accent);
+                            let nw = g.size().x;
+                            ui.painter().galley(pos2(r.left() + 10.0, r.center().y - g.size().y / 2.0), g, th.accent);
+                            ui::paint_text(ui, r.left() + 24.0 + nw.max(110.0), r.center().y, &s.desc, 12.5, th.sub, r.width() - nw.max(110.0) - 110.0, false);
+                            ui.painter().text(pos2(r.right() - 10.0, r.center().y), egui::Align2::RIGHT_CENTER, &s.group, egui::FontId::proportional(11.0), th.sub);
+                            if resp.clicked() {
+                                take_skill = Some(s.name.clone());
+                            }
+                        }
+                    });
+                    if ui.add(egui::Label::new(egui::RichText::new("Eigene Kurzbefehle bearbeiten …").size(12.0).color(th.accent)).sense(Sense::click())).on_hover_text("JSON-Datei mit Name, Beschreibung und Prompt; {text} steht für das, was hinter dem Befehl getippt wird").clicked() {
+                        out.push(AiOut::Preview(crate::skills::ensure_custom_file()));
+                        self.input.clear();
+                    }
+                });
+            });
+        }
         ui.allocate_new_ui(egui::UiBuilder::new().max_rect(frame_rect), |ui| {
             egui::Frame::none()
                 .fill(th.field)
@@ -1841,11 +1948,26 @@ impl ChatView {
                         let te = egui::ScrollArea::vertical().id_salt("ai_input").max_height(54.0).max_width(tw).stick_to_bottom(true).show(ui, |ui| {
                             ui.add_enabled(can, egui::TextEdit::multiline(&mut self.input).frame(false).hint_text(hint).desired_rows(2).desired_width(tw - 10.0))
                         }).inner;
-                        let enter = te.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift);
+                        let mut enter = te.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift);
                         if enter {
                             while self.input.ends_with('\n') {
                                 self.input.pop();
                             }
+                        }
+                        // Enter bei offener Liste übernimmt den Kurzbefehl (statt zu senden)
+                        if enter && !skills.is_empty() && take_skill.is_none() {
+                            take_skill = Some(skills[self.skill_sel].name.clone());
+                        }
+                        if let Some(n) = take_skill.take() {
+                            enter = false;
+                            self.input = format!("/{n} ");
+                            self.skill_sel = 0;
+                            if let Some(mut st) = egui::TextEdit::load_state(ui.ctx(), te.id) {
+                                let end = egui::text::CCursor::new(self.input.chars().count());
+                                st.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+                                st.store(ui.ctx(), te.id);
+                            }
+                            te.request_focus();
                         }
                         self.mic.button(ui, th, &mut self.input, can);
                         let (r, resp) = ui.allocate_exact_size(vec2(36.0, 36.0), Sense::click());

@@ -128,6 +128,10 @@ impl StartCfg {
     }
 
     pub fn save(&self) {
+        // Bildschirmfoto-Läufe (FOLDEX_SHOT) ändern nie die echten Einstellungen
+        if std::env::var_os("FOLDEX_SHOT").is_some() {
+            return;
+        }
         let _ = crate::themes::write_atomic(&file(), serde_json::to_string_pretty(self).unwrap_or_default().as_bytes());
     }
 

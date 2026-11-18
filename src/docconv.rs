@@ -901,6 +901,11 @@ fn to_txt(b: &[Block]) -> String {
     s.trim_end().to_string() + "\n"
 }
 
+/// Blöcke als Markdown (auch für die Schnellansicht von Office-Dateien)
+pub fn to_markdown(b: &[Block]) -> String {
+    to_md(b)
+}
+
 fn to_md(b: &[Block]) -> String {
     let mut s = String::new();
     for x in b {

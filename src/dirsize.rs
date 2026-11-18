@@ -49,6 +49,8 @@ pub struct DirSizes {
     rx: mpsc::Receiver<(PathBuf, Size)>,
     gen: Arc<AtomicU64>,
     dirty: bool,
+    /// zählt hoch, sobald neue Werte da sind (Sortieren nach Größe frischt dann auf)
+    pub ver: u64,
 }
 
 impl DirSizes {
@@ -84,7 +86,7 @@ impl DirSizes {
                 }
             }
         }
-        DirSizes { map, pending: HashSet::new(), tx, rx, gen, dirty: false }
+        DirSizes { map, pending: HashSet::new(), tx, rx, gen, dirty: false, ver: 0 }
     }
 
     /// Größe für die Anzeige; stößt bei Bedarf eine (Neu-)Berechnung an.
@@ -109,6 +111,7 @@ impl DirSizes {
                 self.dirty = true;
             }
             self.map.insert(p, s);
+            self.ver += 1;
         }
     }
 

@@ -223,6 +223,10 @@ impl Settings {
     }
 
     pub fn save(&self) {
+        // Bildschirmfoto-Läufe (FOLDEX_SHOT) ändern nie die echten Einstellungen
+        if std::env::var_os("FOLDEX_SHOT").is_some() {
+            return;
+        }
         let n = |b: bool| if b { 1 } else { 0 };
         let mut extra = String::new();
         for (k, v) in &self.editor_on {

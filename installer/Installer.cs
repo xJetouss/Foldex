@@ -4,7 +4,8 @@
 //
 // Aufruf:
 //   Foldex-Installer.exe                    Assistent (Installieren bzw. Aktualisieren)
-//   Foldex-Installer.exe /silent [/dir=…] [/ai=id,id] [/nodesktop] [/nocontext]
+//   Foldex-Installer.exe /silent [/dir=…] [/ai=id,id] [/nodesktop] [/nocontext] [/launch]
+//   /noupdate: nicht auf GitHub nach einer neueren Version sehen (sonst lädt der Assistent sie bei Bedarf)
 //   Foldex-Deinstallation.exe /uninstall [/silent] [/purge]   (/purge: auch Einstellungen und KI-Modelle)
 
 using System;
@@ -38,6 +39,8 @@ static class Program
             if (o.UninstallRun != null) { return Setup.UninstallRun(o); }
             if (o.Uninstall) { return Setup.UninstallStart(o); }
             if (o.Silent) { return Setup.SilentInstall(o); }
+            // gibt es auf GitHub schon eine neuere Version? Dann diesen Installer laden und starten
+            if (!o.NoUpdate && o.Sandbox == null && Online.Offer()) { return 0; }
             Application.Run(new Wizard(o));
             return 0;
         }
@@ -118,10 +121,100 @@ static class Art
     }
 }
 
+/// neueste Version aus dem GitHub-Repository
+static class Online
+{
+    public const string VersionUrl = "https://raw.githubusercontent.com/xJetouss/Foldex/main/Cargo.toml";
+    public const string InstallerUrl = "https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe";
+
+    static int[] Parse(string v)
+    {
+        int[] r = new int[3];
+        string[] p = v.Trim().TrimStart('v').Split('.');
+        for (int i = 0; i < 3 && i < p.Length; i++)
+        {
+            string d = "";
+            foreach (char c in p[i]) { if (char.IsDigit(c)) { d += c; } else { break; } }
+            int.TryParse(d, out r[i]);
+        }
+        return r;
+    }
+
+    public static bool Newer(string a, string than)
+    {
+        int[] x = Parse(a), y = Parse(than);
+        for (int i = 0; i < 3; i++) { if (x[i] != y[i]) { return x[i] > y[i]; } }
+        return false;
+    }
+
+    class Client : System.Net.WebClient
+    {
+        public int Timeout = 8000;
+        protected override System.Net.WebRequest GetWebRequest(Uri u)
+        {
+            System.Net.WebRequest r = base.GetWebRequest(u);
+            r.Timeout = Timeout;
+            return r;
+        }
+    }
+
+    /// Version auf GitHub (null ohne Verbindung)
+    public static string Latest()
+    {
+        try
+        {
+            System.Net.ServicePointManager.SecurityProtocol |= (System.Net.SecurityProtocolType)3072; // TLS 1.2
+            using (Client c = new Client())
+            {
+                c.Headers.Add("User-Agent", "Foldex-Installer");
+                foreach (string l0 in c.DownloadString(VersionUrl).Split('\n'))
+                {
+                    string l = l0.Trim();
+                    if (l.StartsWith("version"))
+                    {
+                        string v = l.Substring(7).TrimStart(' ', '=').Trim().Trim('"');
+                        if (v.Length > 0) { return v; }
+                    }
+                }
+            }
+        }
+        catch (Exception) { }
+        return null;
+    }
+
+    /// neuere Version anbieten; true = neuer Installer läuft (dieser endet)
+    public static bool Offer()
+    {
+        string v = Latest();
+        if (v == null || !Newer(v, Ver.Value)) { return false; }
+        DialogResult a = MessageBox.Show("Auf GitHub gibt es schon Foldex " + v + " (dieser Installer enthält " + Ver.Value + ").\r\n\r\nDie neueste Version jetzt herunterladen und installieren?", "Foldex – neue Version", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+        if (a != DialogResult.Yes) { return false; }
+        string dest = Path.Combine(Path.GetTempPath(), "Foldex-Installer-" + v + ".exe");
+        try
+        {
+            using (Client c = new Client())
+            {
+                c.Timeout = 300000;
+                c.Headers.Add("User-Agent", "Foldex-Installer");
+                Cursor.Current = Cursors.WaitCursor;
+                c.DownloadFile(InstallerUrl, dest);
+            }
+            if (new FileInfo(dest).Length < (1 << 20)) { throw new Exception("Datei unvollständig"); }
+            Process.Start(dest, "/noupdate");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Download fehlgeschlagen (" + ex.Message + "). Es wird Version " + Ver.Value + " installiert.", "Foldex", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+    }
+}
+
 /// Befehlszeile
 class Opts
 {
-    public bool Silent, Uninstall, Purge, NoDesktop, NoContext;
+    public bool Silent, Uninstall, Purge, NoDesktop, NoContext, Launch, NoUpdate;
     public string Dir, Ai, UninstallRun;
     /// nur zum Testen: Verknüpfungen und Registry-Einträge in einen Testbereich statt ins echte System
     public string Sandbox;
@@ -138,6 +231,8 @@ class Opts
             else if (l == "/purge") { o.Purge = true; }
             else if (l == "/nodesktop") { o.NoDesktop = true; }
             else if (l == "/nocontext") { o.NoContext = true; }
+            else if (l == "/launch") { o.Launch = true; }
+            else if (l == "/noupdate") { o.NoUpdate = true; }
             else if (l.StartsWith("/dir=")) { o.Dir = a.Substring(5).Trim('"'); }
             else if (l.StartsWith("/ai=")) { o.Ai = a.Substring(4).Trim('"'); }
             else if (l.StartsWith("/uninstall-run=")) { o.UninstallRun = a.Substring(15).Trim('"'); }
@@ -430,6 +525,8 @@ static class Setup
             string e = InstallAi(Path.Combine(dir, Exe), ids, delegate (double f, string t) { }, delegate { return false; });
             if (e != null) { return 2; }
         }
+        // Update aus Foldex heraus: danach die neue Version öffnen
+        if (o.Launch) { try { Process.Start(Path.Combine(dir, Exe)); } catch (Exception) { } }
         return 0;
     }
 

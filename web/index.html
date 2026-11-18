@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foldex – Datei-Explorer</title>
+<meta name="description" content="Foldex: schneller, RAM-sparsamer Datei-Explorer für Windows und Linux – mit Tabs, Schnellansicht für fast alles, lokaler KI, Cloud, Terminal und Git.">
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #16181d; --sub: #5b6270; --line: #e3e6eb;
+  --accent: #1a7cf5; --accent-2: #4fb3ff; --on-accent: #ffffff; --chip: #eef3fb;
+  --shadow: 0 18px 50px rgba(20, 40, 80, .14);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1115; --panel: #171a20; --text: #eceef2; --sub: #9aa3b2; --line: #262b33;
+    --accent: #4fa8ff; --accent-2: #7cc7ff; --on-accent: #06121f; --chip: #1c2633;
+    --shadow: 0 18px 60px rgba(0, 0, 0, .5);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1115; --panel: #171a20; --text: #eceef2; --sub: #9aa3b2; --line: #262b33;
+  --accent: #4fa8ff; --accent-2: #7cc7ff; --on-accent: #06121f; --chip: #1c2633;
+  --shadow: 0 18px 60px rgba(0, 0, 0, .5);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+/* Kopf */
+header.top {
+  position: sticky; top: 0; z-index: 10; backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--line);
+}
+header.top .wrap { display: flex; align-items: center; gap: 18px; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 18px; color: var(--text); }
+.brand img { width: 30px; height: 30px; }
+nav.links { display: flex; gap: 22px; margin-left: auto; }
+nav.links a { color: var(--sub); font-size: 14.5px; }
+nav.links a:hover { color: var(--text); text-decoration: none; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border-radius: 10px;
+  background: var(--accent); color: var(--on-accent); font-weight: 600; border: 0; cursor: pointer;
+}
+.btn:hover { text-decoration: none; filter: brightness(1.08); }
+.btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+.btn.small { padding: 7px 14px; font-size: 14px; }
+
+/* Hero */
+.hero { padding: 72px 0 40px; text-align: center; }
+.hero img.logo { width: 84px; height: 84px; }
+.hero h1 { font-size: clamp(34px, 6vw, 58px); line-height: 1.08; margin: 18px 0 14px; letter-spacing: -.02em; }
+.hero h1 span { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero p.lead { font-size: 19px; color: var(--sub); max-width: 720px; margin: 0 auto 28px; }
+.hero .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.hero .meta { margin-top: 14px; font-size: 13.5px; color: var(--sub); }
+.shot-hero { margin: 48px auto 0; max-width: 1100px; }
+figure.shot { margin: 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); background: #111; cursor: zoom-in; }
+figure.shot img { display: block; width: 100%; height: auto; }
+
+/* Kennzahlen */
+.facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 56px 0 0; }
+.fact { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; text-align: center; }
+.fact b { display: block; font-size: 24px; }
+.fact span { color: var(--sub); font-size: 14px; }
+
+/* Abschnitte */
+section { padding: 72px 0 0; }
+section h2 { font-size: clamp(26px, 3.4vw, 36px); margin: 0 0 8px; letter-spacing: -.01em; }
+section p.intro { color: var(--sub); margin: 0 0 30px; max-width: 760px; font-size: 17px; }
+.feature { display: grid; grid-template-columns: 1fr 1.45fr; gap: 40px; align-items: center; margin: 0 0 64px; }
+.feature.rev { grid-template-columns: 1.45fr 1fr; }
+.feature.rev .text { order: 2; }
+.feature h3 { font-size: 23px; margin: 0 0 10px; }
+.feature p { color: var(--sub); margin: 0 0 14px; }
+.feature ul { margin: 0; padding-left: 0; list-style: none; }
+.feature li { padding: 5px 0 5px 26px; position: relative; }
+.feature li::before { content: ""; position: absolute; left: 4px; top: 13px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+
+/* Galerie */
+.gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.gallery figure { margin: 0; }
+.gallery figcaption { font-size: 14px; color: var(--sub); margin-top: 8px; }
+.gallery figcaption b { color: var(--text); font-weight: 600; }
+
+/* Kurzbefehle */
+.skills { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px; box-shadow: var(--shadow); }
+.skill { display: grid; grid-template-columns: 150px 1fr auto; gap: 14px; padding: 9px 12px; border-radius: 8px; align-items: center; }
+.skill:nth-child(1) { background: var(--chip); }
+.skill code { color: var(--accent); font: 14px/1 Consolas, "Cascadia Code", monospace; }
+.skill span { color: var(--sub); font-size: 14.5px; }
+.skill small { color: var(--sub); font-size: 12px; }
+
+/* Alle Funktionen */
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.card h4 { margin: 0 0 6px; font-size: 16.5px; display: flex; align-items: center; gap: 10px; }
+.card h4 i { width: 30px; height: 30px; border-radius: 8px; background: var(--chip); display: grid; place-items: center; font-style: normal; font-size: 16px; }
+.card p { margin: 0; color: var(--sub); font-size: 14.5px; }
+
+/* Download */
+.download { margin: 80px 0 0; padding: 48px 32px; text-align: center; border-radius: 18px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
+.download h2 { color: #fff; }
+.download p { opacity: .92; max-width: 640px; margin: 0 auto 24px; }
+.download .btn { background: #fff; color: #0b3d78; }
+.download .btn.ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.6); }
+.download code { background: rgba(0,0,0,.18); padding: 2px 7px; border-radius: 5px; font-size: 14px; }
+footer { padding: 40px 0 48px; color: var(--sub); font-size: 14px; text-align: center; }
+
+/* Großansicht */
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.86); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 50; cursor: zoom-out; }
+.lightbox.on { display: flex; }
+.lightbox img { max-width: 100%; max-height: 100%; border-radius: 10px; box-shadow: 0 20px 80px rgba(0,0,0,.6); }
+
+@media (max-width: 900px) {
+  nav.links { display: none; }
+  .feature, .feature.rev { grid-template-columns: 1fr; gap: 20px; }
+  .feature.rev .text { order: 0; }
+  .gallery, .grid { grid-template-columns: 1fr 1fr; }
+  .facts { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .wrap { padding: 0 16px; }
+  .gallery, .grid { grid-template-columns: 1fr; }
+  .skill { grid-template-columns: 110px 1fr; }
+  .skill small { display: none; }
+  header.top .btn { display: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="img/logo.png" alt="">Foldex</a>
+    <nav class="links">
+      <a href="#explorer">Explorer</a>
+      <a href="#schnellansicht">Schnellansicht</a>
+      <a href="#ki">KI</a>
+      <a href="#medien">Bilder &amp; Medien</a>
+      <a href="#alles">Alle Funktionen</a>
+    </nav>
+    <a class="btn small" href="#download">Herunterladen</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero">
+    <img class="logo" src="img/logo.png" alt="Foldex-Logo">
+    <h1>Der Datei-Explorer,<br><span>der einfach mehr kann.</span></h1>
+    <p class="lead">Foldex ist schnell, spart Arbeitsspeicher und zeigt fast jede Datei sofort an – Code, Office, PDFs, Videos, 3D-Modelle und Schriften. Dazu lokale KI, Cloud-Laufwerke, Terminal und Git in einem Fenster.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe">⬇ Foldex für Windows</a>
+      <a class="btn ghost" href="https://github.com/xJetouss/Foldex">Quelltext auf GitHub</a>
+    </div>
+    <div class="meta">Kostenlos · ohne Konto · ohne Administratorrechte · Updates kommen automatisch</div>
+    <figure class="shot shot-hero"><img src="img/explorer.webp" alt="Foldex: Ordner nach Größe sortiert, Seitenleiste und Vorschau" width="1440" height="900"></figure>
+  </div>
+
+  <div class="facts">
+    <div class="fact"><b>Rust</b><span>nativ, GPU-gerendert</span></div>
+    <div class="fact"><b>100+</b><span>Formate in der Schnellansicht</span></div>
+    <div class="fact"><b>Lokal</b><span>KI ohne Cloud-Zwang</span></div>
+    <div class="fact"><b>Win + Linux</b><span>ein Programm, beide Systeme</span></div>
+  </div>
+
+  <section id="explorer">
+    <h2>Ein Explorer, wie er sein sollte</h2>
+    <p class="intro">Tabs, geteilte Ansichten, echte Ordnergrößen und eine Vorschau, die mitdenkt – auch in Ordnern mit zehntausenden Dateien bleibt alles flüssig.</p>
+    <div class="feature">
+      <div class="text">
+        <div class="tag">Ordner</div>
+        <h3>Ordnergrößen auf einen Blick</h3>
+        <p>Foldex rechnet Ordnergrößen im Hintergrund aus und merkt sie sich. Nach Größe sortieren zeigt sofort, was Platz frisst.</p>
+        <ul>
+          <li>Tabs und geteilte Kacheln, Tabs zwischen Fenstern ziehen</li>
+          <li>Sofortsuche im Ordner und Index-Suche über alle Laufwerke</li>
+          <li>Filter, Gruppen, Ansichten: Details, Liste, Raster, große Symbole</li>
+          <li>Rückgängig für Kopieren, Verschieben, Umbenennen und Löschen</li>
+        </ul>
+      </div>
+      <figure class="shot"><img src="img/explorer.webp" alt="Ordner nach Größe sortiert" loading="lazy"></figure>
+    </div>
+    <div class="feature rev">
+      <div class="text">
+        <div class="tag">Entwickler</div>
+        <h3>Git, Terminal und Editor eingebaut</h3>
+        <p>Geänderte Dateien sind markiert, der Zweig steht in der Leiste, ein Terminal öffnet sich direkt im Ordner. Code wird mit Syntaxfarben für rund 200 Sprachen angezeigt und lässt sich bearbeiten.</p>
+        <ul>
+          <li>Git-Status je Datei, Zweig wechseln, Commits ansehen</li>
+          <li>Terminal mit Vervollständigung (PowerShell, cmd, Bash)</li>
+          <li>Öffnen in VS Code, Cursor, Zed und Co. per Rechtsklick</li>
+        </ul>
+      </div>
+      <figure class="shot"><img src="img/projekt.webp" alt="Projektordner mit Git-Markierung" loading="lazy"></figure>
+    </div>
+    <div class="feature">
+      <div class="text">
+        <div class="tag">Persönlich</div>
+        <h3>Ordner-Icons, die zum Inhalt passen</h3>
+        <p>Beim Ändern eines Ordner-Icons schlägt Foldex zuerst Vorlagen vor, die zum Inhalt passen – Bilder, Code, Git, Musik, Dokumente. Dazu über tausend Symbole aus drei Icon-Themes, Farben oder ein eigenes Bild.</p>
+      </div>
+      <figure class="shot"><img src="img/icons.webp" alt="Ordner-Icon ändern mit Vorschlägen" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section id="schnellansicht">
+    <h2>Schnellansicht für fast alles</h2>
+    <p class="intro">Leertaste drücken – und die Datei ist da. Ohne ein weiteres Programm zu öffnen.</p>
+    <div class="gallery">
+      <figure><figure class="shot"><img src="img/code.webp" alt="Quelltext mit Syntaxfarben" loading="lazy"></figure><figcaption><b>Code</b> – Syntaxfarben, Zeilennummern, auch riesige Dateien flüssig</figcaption></figure>
+      <figure><figure class="shot"><img src="img/office.webp" alt="Word-Dokument in der Schnellansicht" loading="lazy"></figure><figcaption><b>Office</b> – Word, Excel, PowerPoint, LibreOffice, RTF und EPUB als lesbarer Text</figcaption></figure>
+      <figure><figure class="shot"><img src="img/modell.webp" alt="3D-Modell in der Schnellansicht" loading="lazy"></figure><figcaption><b>3D-Modelle</b> – OBJ, STL, GLB und glTF mit Licht und Schatten</figcaption></figure>
+      <figure><figure class="shot"><img src="img/schrift.webp" alt="Schriftmuster" loading="lazy"></figure><figcaption><b>Schriften</b> – TTF, OTF und TTC als Schriftmuster in mehreren Größen</figcaption></figure>
+      <figure><figure class="shot"><img src="img/video.webp" alt="Video mit Untertiteln" loading="lazy"></figure><figcaption><b>Video &amp; Audio</b> – Player mit Untertiteln, Bild-in-Bild und Wellenform</figcaption></figure>
+      <figure><figure class="shot"><img src="img/suche.webp" alt="Inhaltssuche" loading="lazy"></figure><figcaption><b>PDF, Bilder, Archive</b> – Seiten, Texterkennung, ZIP/7z/RAR-Inhalte</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="ki">
+    <h2>KI, die bei dir bleibt</h2>
+    <p class="intro">Foldex arbeitet mit Claude, OpenAI und anderen Diensten – oder komplett lokal mit eigenen Modellen. Dateien, Fotos und Aufnahmen verlassen den PC nur, wenn du es willst.</p>
+    <div class="feature">
+      <div class="text">
+        <div class="tag">Inhaltssuche</div>
+        <h3>„Finde die Rechnung von Media Markt“</h3>
+        <p>Die Inhaltssuche liest PDFs, Dokumente und Bilder (mit Texterkennung) und erklärt bei jedem Treffer, warum er passt: gefundene Begriffe, Datum, Betrag und die Stelle im Text.</p>
+        <ul>
+          <li>Auch gescannte PDFs und Fotos von Belegen</li>
+          <li>Erkannter Text wird zwischengespeichert – die zweite Suche ist sofort fertig</li>
+          <li>Läuft komplett auf deinem PC</li>
+        </ul>
+      </div>
+      <figure class="shot"><img src="img/suche.webp" alt="Inhaltssuche mit Begründung" loading="lazy"></figure>
+    </div>
+    <div class="feature rev">
+      <div class="text">
+        <div class="tag">Bilder erzeugen</div>
+        <h3>Bilder malen – mit Stil-Vorlagen</h3>
+        <p>Im Bild-Modus entstehen Bilder lokal mit Modellen wie SD-Turbo oder FLUX. Stil-Chips wie <em>Foto</em>, <em>Anime</em>, <em>Ölgemälde</em>, <em>Logo</em> oder <em>Pixel-Art</em> ergänzen den Prompt samt passendem negativen Prompt.</p>
+      </div>
+      <figure class="shot"><img src="img/bildki.webp" alt="Bild-Modus mit Stil-Vorlagen" loading="lazy"></figure>
+    </div>
+    <div class="feature">
+      <div class="text">
+        <div class="tag">Kurzbefehle</div>
+        <h3>Über 50 Skills mit einem Schrägstrich</h3>
+        <p>Im Chat <code>/</code> tippen und einen Kurzbefehl wählen – jeder steht für einen ausgefeilten Prompt. Eigene Kurzbefehle legst du in einer kleinen JSON-Datei an.</p>
+      </div>
+      <div class="skills" aria-label="Beispiele für Kurzbefehle">
+        <div class="skill"><code>/aufräumen</code><span>Ordner sortieren: Unterordner nach Art, Datum oder Projekt</span><small>Dateien</small></div>
+        <div class="skill"><code>/commit</code><span>Commit-Nachricht aus den Änderungen</span><small>Code</small></div>
+        <div class="skill"><code>/erklären</code><span>Code oder Datei verständlich erklären</span><small>Code</small></div>
+        <div class="skill"><code>/duplikate</code><span>Doppelte Dateien finden</span><small>Dateien</small></div>
+        <div class="skill"><code>/review</code><span>Code-Review: Fehler, Risiken, Verbesserungen</span><small>Code</small></div>
+        <div class="skill"><code>/korrigieren</code><span>Rechtschreibung und Grammatik verbessern</span><small>Schreiben</small></div>
+        <div class="skill"><code>/email</code><span>E-Mail formulieren</span><small>Schreiben</small></div>
+        <div class="skill"><code>/pro-contra</code><span>Vor- und Nachteile abwägen</span><small>Lernen</small></div>
+        <div class="skill"><code>/csv</code><span>CSV oder Excel auswerten</span><small>Daten</small></div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="card"><h4><i>🤖</i>Agenten</h4><p>Claude Code, Codex und Gemini CLI direkt im Ordner – mit Freigabe für jede Änderung und Rückgängig.</p></div>
+      <div class="card"><h4><i>💻</i>Lokale Modelle</h4><p>Text- und Bildmodelle laden und ausführen, passend zu Grafikkarte und RAM – statt LM Studio.</p></div>
+      <div class="card"><h4><i>🎙</i>Spracheingabe</h4><p>Diktieren mit Whisper, lokal. Kein Ton verlässt den PC.</p></div>
+    </div>
+  </section>
+
+  <section id="medien">
+    <h2>Bilder, Audio und Video</h2>
+    <p class="intro">Was sonst drei Programme braucht, erledigt Foldex per Rechtsklick.</p>
+    <div class="feature">
+      <div class="text">
+        <div class="tag">Stapelverarbeitung</div>
+        <h3>Viele Bilder auf einmal</h3>
+        <p>Bilder markieren, Rechtsklick, <em>Bilder bearbeiten</em>: Größe ändern, Format umwandeln, Hintergrund entfernen, hochskalieren. Läuft im Hintergrund mit Fortschritt – die Originale bleiben unberührt.</p>
+      </div>
+      <figure class="shot"><img src="img/stapel.webp" alt="Mehrere Bilder bearbeiten" loading="lazy"></figure>
+    </div>
+    <div class="feature rev">
+      <div class="text">
+        <div class="tag">Whisper</div>
+        <h3>Sprachnotizen und Untertitel</h3>
+        <p>Audio-Datei rechtsklicken → <em>In Text umwandeln</em>, und das Transkript liegt als <code>.txt</code> daneben. Bei Videos entsteht eine <code>.srt</code>-Datei; der Player blendet die Untertitel ein und aus (Taste C).</p>
+      </div>
+      <figure class="shot"><img src="img/video.webp" alt="Video mit Untertiteln" loading="lazy"></figure>
+    </div>
+    <div class="grid">
+      <div class="card"><h4><i>🖌</i>Bildeditor mit KI</h4><p>Freistellen, Objekte auswählen, Kolorieren, Hochskalieren und Retuschieren – lokal.</p></div>
+      <div class="card"><h4><i>🎬</i>Video &amp; Audio schneiden</h4><p>Kürzen, Ausschnitte exportieren, Lautstärke anpassen, direkt aus der Vorschau.</p></div>
+      <div class="card"><h4><i>🔁</i>Konvertieren</h4><p>Bilder, Audio, Video, Dokumente und Archive in andere Formate – per Rechtsklick.</p></div>
+    </div>
+  </section>
+
+  <section id="alles">
+    <h2>Alle Funktionen</h2>
+    <p class="intro">Und noch viel mehr, was im Alltag Zeit spart.</p>
+    <div class="grid">
+      <div class="card"><h4><i>☁️</i>Cloud-Laufwerke</h4><p>Google Drive, OneDrive, iCloud, Dropbox und mehr als Laufwerk – mit Live-Abgleich und Cloud-Papierkorb.</p></div>
+      <div class="card"><h4><i>📤</i>Teilen</h4><p>An Handys im WLAN per LocalSend, an WhatsApp oder per Link – ohne Umweg.</p></div>
+      <div class="card"><h4><i>🖨</i>Drucken</h4><p>PDFs und Bilder drucken, mit Live-Vorschau, Seitenauswahl und Schwarz-Weiß.</p></div>
+      <div class="card"><h4><i>🗜</i>Archive</h4><p>ZIP, 7z, RAR, TAR, GZ, XZ, ZST öffnen, entpacken und packen.</p></div>
+      <div class="card"><h4><i>🏠</i>Startseite</h4><p>Schnellzugriff, Laufwerke, Cloud und eigene Hintergrundbilder auf einen Blick.</p></div>
+      <div class="card"><h4><i>🎨</i>Themes &amp; Icons</h4><p>Hell, dunkel und viele Farbthemen; Material-, Catppuccin- und VS-Code-Icons.</p></div>
+      <div class="card"><h4><i>⌨️</i>Tastenkürzel</h4><p>Jeder Befehl mit eigener Taste – frei belegbar, mit Konfliktprüfung.</p></div>
+      <div class="card"><h4><i>📄</i>PDF-Werkzeuge</h4><p>Seiten ansehen, Text kopieren (auch per Texterkennung), Dokumente in PDF umwandeln.</p></div>
+      <div class="card"><h4><i>🔄</i>Automatische Updates</h4><p>Foldex und der Installer holen sich die neueste Version direkt von GitHub.</p></div>
+    </div>
+    <div class="feature" style="margin-top:56px">
+      <div class="text">
+        <div class="tag">Immer aktuell</div>
+        <h3>Updates mit einem Klick</h3>
+        <p>Foldex schaut einmal am Tag nach einer neuen Version. Ein Klick lädt den neuesten Installer, aktualisiert still und startet Foldex neu – Einstellungen, Verlauf und Modelle bleiben erhalten.</p>
+      </div>
+      <figure class="shot"><img src="img/updates.webp" alt="Einstellungen: Updates" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <div class="download" id="download">
+    <h2>Foldex herunterladen</h2>
+    <p>Der Installer richtet Foldex für deinen Benutzer ein – ohne Administratorrechte. Gibt es auf GitHub schon eine neuere Version, lädt er automatisch die neueste.</p>
+    <div class="cta" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <a class="btn" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe">⬇ Installer für Windows</a>
+      <a class="btn ghost" href="https://github.com/xJetouss/Foldex/releases">Alle Versionen</a>
+    </div>
+    <p style="margin-top:22px;font-size:14px">Linux: Quelltext laden und <code>./build.sh</code> ausführen.</p>
+  </div>
+</main>
+
+<footer>
+  Foldex · <a href="https://github.com/xJetouss/Foldex">GitHub</a> · Bildschirmfotos zeigen einen Beispielordner.
+</footer>
+
+<div class="lightbox" id="lb" role="dialog" aria-label="Großansicht"><img alt=""></div>
+<script>
+  // Bildschirmfotos groß ansehen
+  const lb = document.getElementById('lb'), lbi = lb.querySelector('img');
+  document.querySelectorAll('figure.shot img').forEach(img => img.addEventListener('click', () => {
+    lbi.src = img.src; lbi.alt = img.alt; lb.classList.add('on');
+  }));
+  lb.addEventListener('click', () => lb.classList.remove('on'));
+  addEventListener('keydown', e => { if (e.key === 'Escape') lb.classList.remove('on'); });
+</script>
+</body>
+</html>
