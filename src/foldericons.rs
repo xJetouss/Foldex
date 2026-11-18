@@ -118,3 +118,85 @@ mod tests {
         assert_eq!(preset_label("vscode-icons:folder_type_images"), "images");
     }
 }
+
+/// Vorschläge passend zum Inhalt: Dateitypen, typische Unterordner und Projektdateien zählen, dazu der Name.
+/// Ergebnis: Namen von Material-Ordnersymbolen, bester zuerst (der Aufrufer filtert auf vorhandene).
+pub fn suggest(dir: &Path) -> Vec<String> {
+    let mut score: HashMap<&'static str, f32> = HashMap::new();
+    let mut add = |k: &'static str, v: f32| *score.entry(k).or_default() += v;
+    let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let by_name = crate::matico::folder_icon(&name);
+    if by_name != "folder" && !by_name.is_empty() {
+        add(by_name, 6.0);
+    }
+    let Ok(rd) = std::fs::read_dir(dir) else { return Vec::new() };
+    let mut files = 0f32;
+    let mut cnt: HashMap<&'static str, f32> = HashMap::new();
+    for e in rd.flatten().take(600) {
+        let n = e.file_name().to_string_lossy().to_lowercase();
+        if e.file_type().is_ok_and(|t| t.is_dir()) {
+            match n.as_str() {
+                ".git" => add("folder-git", 8.0),
+                ".github" => add("folder-github", 3.0),
+                "node_modules" => add("folder-node", 5.0),
+                "src" => add("folder-src", 2.0),
+                "test" | "tests" => add("folder-test", 1.0),
+                "target" => add("folder-rust", 2.0),
+                "venv" | ".venv" | "__pycache__" => add("folder-python", 4.0),
+                ".vscode" => add("folder-vscode", 1.0),
+                _ => {}
+            }
+            continue;
+        }
+        files += 1.0;
+        match n.as_str() {
+            "cargo.toml" => add("folder-rust", 8.0),
+            "package.json" => add("folder-javascript", 6.0),
+            "tsconfig.json" => add("folder-typescript", 6.0),
+            "pyproject.toml" | "requirements.txt" | "setup.py" => add("folder-python", 7.0),
+            "go.mod" => add("folder-go", 7.0),
+            "dockerfile" | "docker-compose.yml" | "compose.yaml" => add("folder-docker", 4.0),
+            "pom.xml" | "build.gradle" => add("folder-java", 6.0),
+            "pubspec.yaml" => add("folder-flutter", 7.0),
+            _ => {}
+        }
+        let ext = n.rsplit_once('.').map_or("", |x| x.1);
+        let k = match ext {
+            "png" | "jpg" | "jpeg" | "gif" | "webp" | "heic" | "bmp" | "tif" | "tiff" | "raw" | "cr2" | "nef" | "arw" | "dng" | "avif" => "folder-images",
+            "svg" | "ico" => "folder-images",
+            "mp4" | "mkv" | "mov" | "avi" | "webm" | "wmv" | "m4v" => "folder-video",
+            "mp3" | "wav" | "flac" | "ogg" | "m4a" | "aac" | "opus" | "wma" => "folder-audio",
+            "pdf" => "folder-pdf",
+            "doc" | "docx" | "odt" | "rtf" | "txt" | "xls" | "xlsx" | "ods" | "ppt" | "pptx" | "epub" => "folder-docs",
+            "md" | "markdown" => "folder-markdown",
+            "zip" | "7z" | "rar" | "tar" | "gz" | "xz" | "zst" => "folder-archive",
+            "ttf" | "otf" | "woff" | "woff2" => "folder-font",
+            "rs" => "folder-rust",
+            "py" | "ipynb" => "folder-python",
+            "js" | "mjs" | "cjs" | "jsx" => "folder-javascript",
+            "ts" | "tsx" => "folder-typescript",
+            "go" => "folder-go",
+            "java" | "kt" => "folder-java",
+            "c" | "cpp" | "h" | "hpp" | "cs" => "folder-src",
+            "html" | "css" | "scss" => "folder-public",
+            "sql" | "db" | "sqlite" => "folder-database",
+            "log" => "folder-log",
+            "exe" | "msi" | "dll" => "folder-dist",
+            "sh" | "bat" | "ps1" | "cmd" => "folder-scripts",
+            "json" | "yaml" | "yml" | "toml" | "ini" | "cfg" => "folder-config",
+            "bak" => "folder-backup",
+            "obj" | "glb" | "gltf" | "fbx" | "blend" | "stl" => "folder-blender",
+            "eml" | "msg" => "folder-mail",
+            _ => continue,
+        };
+        *cnt.entry(k).or_default() += 1.0;
+    }
+    // Dateitypen zählen relativ zur Menge (ein Bild unter 300 Dateien ist kein Bilderordner)
+    let files = files.max(1.0);
+    for (k, c) in cnt {
+        *score.entry(k).or_default() += c / files * 10.0;
+    }
+    let mut v: Vec<(&str, f32)> = score.into_iter().filter(|(_, s)| *s >= 0.8).collect();
+    v.sort_by(|a, b| b.1.total_cmp(&a.1));
+    v.into_iter().take(10).map(|(k, _)| k.to_string()).collect()
+}

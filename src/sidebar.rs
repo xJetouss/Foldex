@@ -65,6 +65,10 @@ impl SidebarCfg {
     }
 
     pub fn save(&self) {
+        // Bildschirmfoto-Läufe (FOLDEX_SHOT) ändern nie die echten Einstellungen
+        if std::env::var_os("FOLDEX_SHOT").is_some() {
+            return;
+        }
         let mut s = format!("show_pc={}\n", if self.show_pc { 1 } else { 0 });
         for e in &self.pins {
             s.push_str(&format!("pin\t{}\t{}\n", e.label.replace('\t', " "), e.path.display()));
@@ -271,6 +275,9 @@ impl Recent {
     }
 
     fn save(&self) {
+        if std::env::var_os("FOLDEX_SHOT").is_some() {
+            return;
+        }
         let s: String = self.dirs.iter().map(|d| format!("{}\n", d.display())).collect();
         let _ = crate::themes::write_atomic(&recent_file(), s.as_bytes());
     }

@@ -82,7 +82,8 @@ struct Popup {
 pub struct CodeEdit {
     id: egui::Id,
     /// (Schlüssel, Galley) – neu aufgebaut nur, wenn sich Text, Breite oder Farben ändern
-    cache: Option<(u64, Arc<Galley>)>,
+    /// fertiges Layout: (Inhalt, Stand der Hervorhebung, wann gebaut, Layout)
+    cache: Option<(u64, usize, Instant, Arc<Galley>)>,
     syms: Vec<Sym>,
     syms_key: u64,
     syms_at: Instant,
@@ -99,13 +100,58 @@ pub struct CodeEdit {
     /// Sprache (nach Dateiendung) und zuletzt übernommene Vorschläge (kommen künftig weiter nach oben)
     lang: &'static crate::langs::Lang,
     recent: Vec<String>,
+    /// große Dateien nur ansehen: Anfang jeder Zeile (Inhalt-Schlüssel, Byte-Positionen)
+    line_starts: Option<(u64, Vec<usize>)>,
 }
 
+/// ab so vielen Zeilen zeigt die reine Ansicht nur die sichtbaren Zeilen (statt den ganzen Text zu setzen)
+const VIRTUAL_LINES: usize = 1500;
+
 impl CodeEdit {
+    /// Ansicht für große Dateien: nur die sichtbaren Zeilen werden gesetzt (schneller Tab-Wechsel und
+    /// flüssiges Scrollen auch bei zehntausenden Zeilen). Auswählen und Bearbeiten im Bearbeiten-Modus.
+    #[allow(clippy::too_many_arguments)]
+    fn show_large(&mut self, ui: &mut egui::Ui, th: &Theme, text: &str, ext: &str, hl: Option<&Highlight>, inner: egui::Rect, gutter: f32, font: &FontId) {
+        let key = quick_hash(text);
+        if self.line_starts.as_ref().is_none_or(|(k, _)| *k != key) {
+            let mut v = vec![0usize];
+            v.extend(text.match_indices('\n').map(|(i, _)| i + 1));
+            self.line_starts = Some((key, v));
+        }
+        let starts = &self.line_starts.as_ref().unwrap().1;
+        let row_h = ui.fonts(|f| f.row_height(font)) + 2.0;
+        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner.shrink2(vec2(0.0, 4.0))));
+        let mut sa = egui::ScrollArea::both().id_salt(self.id.with("gross")).auto_shrink([false, false]);
+        if let Some(y) = self.scroll_to.take() {
+            sa = sa.vertical_scroll_offset(y.max(0.0));
+        }
+        if let Some(line) = self.jump.take() {
+            sa = sa.vertical_scroll_offset(line.saturating_sub(4) as f32 * row_h);
+        }
+        sa.show_rows(&mut child, row_h, starts.len(), |ui, range| {
+            for i in range {
+                let a = starts[i];
+                let b = starts.get(i + 1).map_or(text.len(), |e| e.saturating_sub(1));
+                let line = text.get(a..b.max(a)).unwrap_or("").trim_end_matches('\r');
+                let mut job = egui::text::LayoutJob::default();
+                line_job(&mut job, line, ext, th, font, hl.and_then(|h| h.line(i)));
+                job.wrap = egui::text::TextWrapping::no_max_width();
+                let g = ui.fonts(|f| f.layout_job(job));
+                let (r, _) = ui.allocate_exact_size(vec2(gutter + 8.0 + g.size().x + 16.0, row_h), egui::Sense::hover());
+                ui.painter().text(pos2(r.left() + gutter - 2.0, r.center().y), egui::Align2::RIGHT_CENTER, (i + 1).to_string(), font.clone(), th.line_no);
+                ui.painter().galley(pos2(r.left() + gutter + 8.0, r.center().y - g.size().y / 2.0), g, th.ed_text);
+            }
+        });
+        if hl.is_some_and(|h| !h.done()) {
+            ui.ctx().request_repaint_after(Duration::from_millis(300));
+        }
+    }
+
     pub fn new(salt: &str) -> CodeEdit {
         CodeEdit {
             id: egui::Id::new(("codeedit", salt.to_string())),
             cache: None,
+            line_starts: None,
             syms: Vec::new(),
             syms_key: 0,
             syms_at: Instant::now() - Duration::from_secs(10),
@@ -143,6 +189,11 @@ impl CodeEdit {
         let inner = rect.shrink(1.0);
         let lines = text.as_str().bytes().filter(|b| *b == b'\n').count() + 1;
         let gutter = format!("{lines}").len() as f32 * 8.0 + 14.0;
+        // große Dateien nur ansehen: Zeile für Zeile nur das Sichtbare setzen und zeichnen
+        if !editable && lines > VIRTUAL_LINES {
+            self.show_large(ui, th, text.as_str(), ext, hl, inner, gutter, &font);
+            return false;
+        }
 
         // Bezeichner neu erkennen (gedrosselt beim Tippen; große Dateien seltener)
         if editable {
@@ -191,10 +242,15 @@ impl CodeEdit {
             wrap.to_bits().hash(&mut h);
             dark.hash(&mut h);
             th.text.hash(&mut h);
-            hl.map(Highlight::progress).hash(&mut h);
             let key = h.finish();
-            if let Some((k, g)) = cache.as_ref() {
-                if *k == key {
+            let progress = hl.map(Highlight::progress).unwrap_or(0);
+            if let Some((k, p, at, g)) = cache.as_ref() {
+                // gleicher Text: altes Layout behalten, solange die Hervorhebung nur weiterläuft – große Dateien
+                // sonst bei jedem Bild komplett neu gesetzt (spürbar beim Tab-Wechsel und Scrollen)
+                if *k == key && (*p == progress || (at.elapsed() < Duration::from_millis(350) && hl.is_some_and(|h| !h.done()))) {
+                    if *p != progress {
+                        ui.ctx().request_repaint_after(Duration::from_millis(360));
+                    }
                     return g.clone();
                 }
             }
@@ -207,7 +263,7 @@ impl CodeEdit {
             }
             job.wrap = egui::text::TextWrapping { max_width: wrap, break_anywhere: true, ..Default::default() };
             let g = ui.fonts(|f| f.layout_job(job));
-            *cache = Some((key, g.clone()));
+            *cache = Some((key, progress, Instant::now(), g.clone()));
             g
         };
         let mut changed = false;

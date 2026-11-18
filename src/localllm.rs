@@ -1740,6 +1740,16 @@ pub fn install_stt(m: &SttModel) {
     enqueue(Job { label: m.name.into(), url: m.file.url(), dest: stt_path(m), unzip_to: None, clean: false, auth: None });
 }
 
+/// whisper.cpp-Programm (für Dateien umwandeln)
+pub fn whisper_exe() -> Option<PathBuf> {
+    exe(&WHISPER)
+}
+
+/// Bibliothekspfad für whisper.cpp setzen
+pub fn whisper_env(c: &mut Command, exe: &Path) {
+    lib_path(c, exe);
+}
+
 /// Aufnahme (WAV, 16 kHz mono) in Text umwandeln; Sprache wird erkannt
 pub fn transcribe(wav: &Path) -> Result<String, String> {
     let model = stt_ready().ok_or("Spracheingabe ist nicht eingerichtet")?;

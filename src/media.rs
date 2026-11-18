@@ -395,9 +395,48 @@ pub struct Player {
     drag: Option<f64>,
     pub last_frame: u64,
     pub err: Option<String>,
+    /// Untertitel (.srt/.vtt mit gleichem Namen): Datei, Änderungszeit, Einträge; ein-/ausblendbar
+    subs: Option<(PathBuf, Option<std::time::SystemTime>, Vec<crate::transcribe::Cue>)>,
+    pub subs_on: bool,
+    subs_look: Option<Instant>,
 }
 
 impl Player {
+    /// Untertitel neben dem Video suchen bzw. nach Änderung neu lesen (alle 2 s)
+    fn load_subs(&mut self) {
+        if self.subs_look.is_some_and(|t| t.elapsed() < Duration::from_secs(2)) {
+            return;
+        }
+        self.subs_look = Some(Instant::now());
+        let Some(f) = crate::transcribe::subs_for(&self.path) else {
+            self.subs = None;
+            return;
+        };
+        let mt = std::fs::metadata(&f).and_then(|m| m.modified()).ok();
+        if self.subs.as_ref().is_some_and(|(p, m, _)| *p == f && *m == mt) {
+            return;
+        }
+        let cues = std::fs::read_to_string(&f).map(|t| crate::transcribe::parse_srt(&t)).unwrap_or_default();
+        self.subs = Some((f, mt, cues));
+    }
+
+    /// aktueller Untertitel unten im Bild
+    fn paint_subs(&self, ui: &egui::Ui, r: Rect) {
+        let Some((_, _, cues)) = self.subs.as_ref().filter(|_| self.subs_on) else { return };
+        let t = self.pos();
+        let Some(c) = cues.iter().find(|c| t >= c.0 && t <= c.1) else { return };
+        let size = (r.height() / 22.0).clamp(13.0, 34.0);
+        let g = ui.fonts(|f| f.layout(c.2.clone(), FontId::proportional(size), Color32::WHITE, r.width() * 0.86));
+        let bottom = r.bottom() - if self.fullscreen { 90.0 } else { r.height() * 0.08 + 10.0 };
+        let box_ = Rect::from_center_size(pos2(r.center().x, bottom - g.size().y / 2.0), g.size() + vec2(18.0, 8.0));
+        ui.painter().rect_filled(box_, 5.0, Color32::from_black_alpha(170));
+        ui.painter().galley(box_.min + vec2(9.0, 4.0), g, Color32::WHITE);
+    }
+
+    pub fn has_subs(&self) -> bool {
+        self.subs.as_ref().is_some_and(|s| !s.2.is_empty())
+    }
+
     /// Neuer Player, angehalten am Anfang; die Dekoder starten erst mit dem ersten Abspielen.
     pub fn new(path: PathBuf, info: Info, ctx: &egui::Context, volume: f32) -> Player {
         Player {
@@ -438,6 +477,9 @@ impl Player {
             drag: None,
             last_frame: ctx.cumulative_pass_nr(),
             err: None,
+            subs: None,
+            subs_on: true,
+            subs_look: None,
         }
     }
 
@@ -827,6 +869,8 @@ impl Player {
             self.toggle();
         }
         self.boost_badge(ui, r);
+        self.load_subs();
+        self.paint_subs(ui, r);
         if self.paused && !self.ended {
             // großes Abspielsymbol in der Mitte
             let c = r.center();
@@ -950,6 +994,27 @@ impl Player {
             fullscreen_icon(&p, Rect::from_center_size(fb.center(), vec2(14.0, 14.0)), fg, self.fullscreen);
             if resp.on_hover_text(if self.fullscreen { "Vollbild verlassen (Esc)" } else { "Vollbild (F, Doppelklick)" }).clicked() {
                 self.fullscreen = !self.fullscreen;
+            }
+            right -= 34.0;
+        }
+        // Untertitel ein/aus (nur wenn eine .srt/.vtt daneben liegt)
+        if self.info.has_video && self.has_subs() {
+            let cb = Rect::from_center_size(pos2(right - 14.0, mid), vec2(28.0, 28.0));
+            let resp = ui.interact(cb, ui.id().with("pl_cc"), Sense::click());
+            if resp.hovered() {
+                p.rect_filled(cb, 6.0, if dark { Color32::from_white_alpha(40) } else { th.hover });
+            }
+            let cr = Rect::from_center_size(cb.center(), vec2(20.0, 14.0));
+            let col = if self.subs_on { fg } else { sub };
+            if self.subs_on {
+                p.rect_filled(cr, 3.0, col);
+                p.text(cr.center(), egui::Align2::CENTER_CENTER, "CC", FontId::proportional(9.5), if dark { Color32::BLACK } else { th.bg });
+            } else {
+                p.rect_stroke(cr, 3.0, Stroke::new(1.3, col));
+                p.text(cr.center(), egui::Align2::CENTER_CENTER, "CC", FontId::proportional(9.5), col);
+            }
+            if resp.on_hover_text(if self.subs_on { "Untertitel ausblenden (C)" } else { "Untertitel einblenden (C)" }).clicked() {
+                self.subs_on = !self.subs_on;
             }
             right -= 34.0;
         }
@@ -1192,6 +1257,9 @@ impl Player {
         if m {
             self.muted = !self.muted;
             self.apply_volume();
+        }
+        if ui.input(|i| i.key_pressed(egui::Key::C)) && self.has_subs() {
+            self.subs_on = !self.subs_on;
         }
         if f && self.info.has_video && !self.pip {
             self.fullscreen = !self.fullscreen;

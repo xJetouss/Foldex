@@ -6,6 +6,12 @@ mod startpage;
 mod shortcut;
 mod print;
 mod uninstall;
+mod update;
+mod quicklook;
+mod transcribe;
+mod batch;
+mod contentsearch;
+mod skills;
 mod aisetup;
 mod cloudtrash;
 mod matico;
@@ -264,6 +270,12 @@ enum Dest {
 }
 
 enum Act {
+    /// Audio → .txt (false) bzw. Video → .srt (true) mit Whisper
+    Transcribe(Vec<PathBuf>, bool),
+    /// mehrere Bilder bearbeiten (Fenster)
+    BatchImages(Vec<PathBuf>),
+    /// Inhaltssuche (PDFs, Bilder, Dokumente) im aktuellen Ordner, optional mit Anfrage
+    ContentSearch(Option<String>),
     Go(PathBuf),
     OpenFile(PathBuf),
     Open(PathBuf),
@@ -893,7 +905,10 @@ mod prof {
     impl Drop for Frame {
         fn drop(&mut self) {
             let total = self.0.elapsed();
-            if total.as_millis() < 80 {
+            // Schwelle: FOLDEX_FRAMELOG_MS (Standard 80 ms)
+            static MIN: std::sync::OnceLock<u128> = std::sync::OnceLock::new();
+            let min = *MIN.get_or_init(|| std::env::var("FOLDEX_FRAMELOG_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(80));
+            if total.as_millis() < min {
                 return;
             }
             let Some(f) = std::env::var_os("FOLDEX_FRAMELOG") else { return };
@@ -1291,6 +1306,14 @@ struct App {
     printwin: Option<print::PrintWin>,
     /// Rückfrage „Deinstallieren“: Some(Programmdatei auch löschen?)
     uninstall_ask: Option<bool>,
+    /// Updates von GitHub; `update_quit`: Installer läuft, Foldex beendet sich
+    updater: update::Updater,
+    /// Fenster „Bilder bearbeiten“
+    batch: Option<batch::Opts>,
+    /// Inhaltssuche: Anfrage, Ordner, laufende/fertige Suche
+    csearch: Option<(String, PathBuf, Option<contentsearch::Search>)>,
+    update_quit: Arc<AtomicBool>,
+    update_checked: bool,
     /// Startseite: Einstellungen, Suchfeld, Hintergrundbild
     start_cfg: startpage::StartCfg,
     start_query: String,
@@ -1508,6 +1531,11 @@ impl App {
             cloud_refresh_at: HashMap::new(),
             printwin: None,
             uninstall_ask: None,
+            updater: update::Updater::default(),
+            batch: None,
+            csearch: None,
+            update_quit: Arc::new(AtomicBool::new(false)),
+            update_checked: false,
             start_cfg: startpage::StartCfg::load(),
             start_query: String::new(),
             start_bg: None,
@@ -1576,6 +1604,17 @@ impl App {
             d(self);
         }
         self.cloud_live();
+        // einmal am Tag nach einer neuen Version sehen (nicht bei Bildschirmfotos für die Doku)
+        if !self.update_checked {
+            self.update_checked = true;
+            if std::env::var_os("FOLDEX_SHOT").is_none() && std::env::var_os("FOLDEX_NO_UPDATE").is_none() {
+                self.updater.check_daily(&self.ctx);
+            }
+        }
+        if self.update_quit.swap(false, Relaxed) {
+            // der Installer ist gestartet: normal beenden (Sitzung speichern), er startet danach die neue Version
+            self.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
         self.icons.poll(&self.ctx);
         if let Some(Ok(v)) = self.git_rx.as_ref().map(|rx| rx.try_recv()) {
             self.git = v;
@@ -3084,6 +3123,61 @@ impl App {
                     _ => self.new_tab(home),
                 }
             }
+            Act::Transcribe(paths, srt) => {
+                if localllm::stt_ready().is_none() {
+                    self.status = "Whisper ist noch nicht eingerichtet – Einstellungen → Lokale Modelle → Spracheingabe".into();
+                    self.settings_page = "Lokale Modelle".into();
+                    self.show_settings = true;
+                } else {
+                    let prog = Arc::new(AtomicU64::new(0));
+                    let cancel = Arc::new(AtomicBool::new(false));
+                    let (p2, c2) = (prog.clone(), cancel.clone());
+                    let n = paths.len();
+                    let label = if srt { "Untertitel erzeugen" } else { "In Text umwandeln" };
+                    self.run_job_ex(label, Some(prog), 1000, Some(cancel), move || {
+                        let mut made = Vec::new();
+                        let mut err = None;
+                        let one = AtomicU64::new(0);
+                        for (i, p) in paths.iter().enumerate() {
+                            if c2.load(Relaxed) {
+                                break;
+                            }
+                            one.store(0, Relaxed);
+                            // Gesamtfortschritt: fertige Dateien + Anteil der laufenden
+                            let r = std::thread::scope(|s| {
+                                let h = s.spawn(|| transcribe::run(p, srt, &one, &c2));
+                                while !h.is_finished() {
+                                    p2.store((i as u64 * 1000 + one.load(Relaxed)) / n as u64, Relaxed);
+                                    std::thread::sleep(Duration::from_millis(200));
+                                }
+                                h.join().unwrap_or_else(|_| Err("abgestürzt".into()))
+                            });
+                            match r {
+                                Ok(f) => made.push(f),
+                                Err(e) => err = Some(e),
+                            }
+                        }
+                        let what = if srt { "Untertitel" } else { "Transkript" };
+                        let msg = match (made.len(), err) {
+                            (1, None) => format!("{what} gespeichert: {}", made[0].file_name().unwrap_or_default().to_string_lossy()),
+                            (k, None) => format!("{k} × {what} gespeichert"),
+                            (_, Some(e)) => e,
+                        };
+                        JobDone { msg, hist: Hist::None, locked: None }
+                    });
+                    if let Some(j) = self.jobs.last_mut() {
+                        j.pct = true;
+                    }
+                }
+            }
+            Act::BatchImages(paths) => {
+                self.batch = Some(batch::Opts::new(paths));
+            }
+            Act::ContentSearch(q) => {
+                let dir = self.pane().cwd.clone();
+                let s = q.as_deref().map(|q| contentsearch::Search::start(q, &dir, &self.ctx));
+                self.csearch = Some((q.unwrap_or_default(), dir, s));
+            }
             Act::Print(paths) => {
                 let files: Vec<PathBuf> = paths.into_iter().filter(|p| !fsx::is_dir(p) && print::supported(p)).take(30).collect();
                 if files.is_empty() {
@@ -3681,8 +3775,59 @@ const SETTINGS_PAGES: &[(&str, Ic, &str)] = &[
     ("Schnellleiste", Ic::Tools, "Knöpfe über der Dateiliste"),
     ("Tastenkürzel", Ic::Keyboard, "Befehle und ihre Tasten"),
     ("Import / Export", Ic::Download, "Einstellungen als JSON-Datei übertragen"),
+    ("Updates", Ic::Download, "Neue Versionen von GitHub laden und installieren"),
     ("Deinstallieren", Ic::Trash, "Foldex mit allen Daten und Modellen entfernen"),
 ];
+
+/// Update-Anzeige: kompakt (Statuszeile, nur wenn es etwas gibt) oder ausführlich (Einstellungen)
+fn update_ui(ui: &mut egui::Ui, th: Theme, up: &update::Updater, quit: &Arc<AtomicBool>, compact: bool) {
+    let install = |ui: &mut egui::Ui| {
+        let q = quit.clone();
+        up.install(ui.ctx(), move |r| {
+            if r.is_ok() {
+                q.store(true, Relaxed);
+            }
+        });
+    };
+    match up.state() {
+        update::State::Available(v) => {
+            let txt = if compact { format!("Foldex {v} verfügbar – aktualisieren") } else { format!("Jetzt auf {v} aktualisieren") };
+            if ui.add(egui::Button::new(egui::RichText::new(txt).size(12.5).color(th.accent))).on_hover_text("Lädt den neuesten Installer von GitHub, installiert ihn und startet Foldex neu").clicked() {
+                install(ui);
+            }
+            if !compact {
+                ui.label(egui::RichText::new(format!("Installiert ist {}. Einstellungen, Verlauf und Modelle bleiben erhalten.", update::current())).color(th.sub));
+            }
+        }
+        update::State::Downloading => {
+            let (g, t) = (up.got.load(Relaxed), up.total.load(Relaxed));
+            ui.spinner();
+            if t > 0 {
+                ui.add(egui::ProgressBar::new(g as f32 / t as f32).desired_width(if compact { 120.0 } else { 260.0 }).desired_height(6.0));
+            }
+            ui.label(egui::RichText::new(format!("Update wird geladen … {}", human(g))).size(12.5).color(th.sub));
+        }
+        _ if compact => {}
+        s => {
+            let msg = match &s {
+                update::State::Checking => "Suche nach Updates …".to_string(),
+                update::State::UpToDate => format!("Foldex {} ist die neueste Version.", update::current()),
+                update::State::Failed(e) => e.clone(),
+                _ => format!("Installiert: Foldex {}", update::current()),
+            };
+            ui.label(egui::RichText::new(msg).color(th.sub));
+            if ui.add_enabled(!matches!(s, update::State::Checking), egui::Button::new("Nach Updates suchen")).clicked() {
+                up.check(ui.ctx());
+            }
+            if matches!(s, update::State::Failed(_)) && ui.button("Installer trotzdem laden und ausführen").clicked() {
+                install(ui);
+            }
+        }
+    }
+    if !compact {
+        ui.hyperlink_to("Foldex auf GitHub", update::PAGE_URL);
+    }
+}
 
 fn settings_card(ui: &mut egui::Ui, th: Theme, title: &str, add: impl FnOnce(&mut egui::Ui)) {
     // nur der gewählte Bereich wird gezeigt (sein Titel steht schon als Seitenüberschrift)
@@ -4694,6 +4839,37 @@ impl App {
         }
         if self.dev_frames == 3 {
             let view = std::env::var("FOLDEX_SHOT_VIEW").unwrap_or_default();
+            // FOLDEX_SHOT_DEMO=<Ordner>: Seitenleiste nur mit dessen Unterordnern (für Website-Bilder ohne
+            // persönliche Einträge) – nur im Speicher, nichts wird gespeichert
+            if let Ok(d) = std::env::var("FOLDEX_SHOT_DEMO") {
+                let mut pins: Vec<sidebar::Entry> = std::fs::read_dir(&d)
+                    .map(|rd| rd.flatten().filter(|e| e.path().is_dir()).map(|e| sidebar::Entry { label: e.file_name().to_string_lossy().into_owned(), path: e.path() }).collect())
+                    .unwrap_or_default();
+                pins.sort_by(|a, b| a.label.cmp(&b.label));
+                self.side.pins = pins;
+                self.st.show_recent = false;
+                self.side.hidden.extend(cloud::places().into_iter().map(|c| c.path));
+            }
+            // FOLDEX_SHOT_SORT=size: nach Größe absteigend (Test der Ordnergrößen)
+            if std::env::var("FOLDEX_SHOT_SORT").is_ok_and(|v| v == "size") {
+                self.apply(Act::SortKey(SortBy::Size));
+                self.apply(Act::SortDir(false));
+            }
+            // FOLDEX_SHOT_VIEW=csearch:<Ordner>|<Anfrage>: Inhaltssuche
+            if let Some(rest) = view.strip_prefix("csearch:") {
+                let (d, q) = rest.split_once('|').unwrap_or((rest, ""));
+                self.apply(Act::Go(PathBuf::from(d)));
+                let s = (!q.is_empty()).then(|| contentsearch::Search::start(q, Path::new(d), ctx));
+                self.csearch = Some((q.to_string(), PathBuf::from(d), s));
+            }
+            // FOLDEX_SHOT_VIEW=batch:<Bild>;<Bild>: Fenster „Bilder bearbeiten“
+            if let Some(list) = view.strip_prefix("batch:") {
+                let mut o = batch::Opts::new(list.split(';').map(PathBuf::from).collect());
+                o.resize = batch::Resize::MaxSide(1920);
+                o.format = "webp".into();
+                o.remove_bg = true;
+                self.batch = Some(o);
+            }
             // FOLDEX_SHOT_VIEW=foldericon:<Ordner>: Fenster „Ordner-Icon ändern“
             if let Some(d) = view.strip_prefix("foldericon:") {
                 self.folder_icon = Some((PathBuf::from(d), String::new()));
@@ -4709,6 +4885,8 @@ impl App {
                 let b = self.editor_backend();
                 let mut c = aiui::ChatView::editor(self.pane().cwd.clone(), b, false);
                 c.set_image(true);
+                // FOLDEX_SHOT_STYLE=<n>: Stil-Vorlage gewählt; FOLDEX_SHOT_INPUT=<Text>: Eingabe
+                c.dev_set(std::env::var("FOLDEX_SHOT_INPUT").ok(), std::env::var("FOLDEX_SHOT_STYLE").ok().and_then(|v| v.parse().ok()));
                 // FOLDEX_SHOT_ATTACH=<Bild>: als Vorlage angehängt
                 if let Ok(f) = std::env::var("FOLDEX_SHOT_ATTACH") {
                     c.attach(vec![PathBuf::from(f)]);
@@ -4750,6 +4928,20 @@ impl App {
             } else if let Some(p) = view.strip_prefix("cloud:") {
                 self.apply(Act::Go(PathBuf::from(p)));
             }
+            // FOLDEX_SHOT_VIEW=tabs:<Pfad>|<Pfad>|…: je Pfad ein Tab (zum Messen des Tab-Wechsels)
+            if let Some(list) = view.strip_prefix("tabs:") {
+                for (k, p) in list.split('|').enumerate() {
+                    // „view:<Datei>“: als Schnellansicht-Tab (großer Text, Video, PDF …)
+                    if let Some(f) = p.strip_prefix("view:") {
+                        self.open_view(PathBuf::from(f));
+                        continue;
+                    }
+                    if k > 0 {
+                        self.apply(Act::TabNew);
+                    }
+                    self.apply(Act::Go(PathBuf::from(p)));
+                }
+            }
             // FOLDEX_SHOT_VIEW=summary:<Pfad>: Zusammenfassung
             if let Some(p) = view.strip_prefix("summary:") {
                 self.apply(Act::Summary(PathBuf::from(p)));
@@ -4759,6 +4951,7 @@ impl App {
                 let b = self.editor_backend();
                 let mut c = aiui::ChatView::editor(self.pane().cwd.clone(), b, m == "agent");
                 c.set_mode(m == "agent", m == "chat");
+                c.dev_set(std::env::var("FOLDEX_SHOT_INPUT").ok(), None);
                 // FOLDEX_SHOT_ATTACH=<Datei>;<Datei>: angehängt
                 if let Ok(f) = std::env::var("FOLDEX_SHOT_ATTACH") {
                     c.attach(f.split(';').map(PathBuf::from).collect());
@@ -5265,9 +5458,44 @@ impl App {
         self.git_st_rx = Some(rx);
     }
 
+    /// Sortieren nach Größe: Ordner zählen mit ihrer (im Hintergrund berechneten) Gesamtgröße. Alle
+    /// Unterordner der sichtbaren Kacheln werden angefragt; neue Werte sortieren höchstens alle 0,4 s neu.
+    fn size_sort(&mut self) {
+        if !self.st.folder_sizes {
+            return;
+        }
+        let ver = self.dsize.ver;
+        let st = self.st.clone();
+        let (dsize, tabs, cur) = (&mut self.dsize, &mut self.tabs, self.cur);
+        let Some(t) = tabs.get_mut(cur) else { return };
+        for pn in &mut t.panes {
+            if pn.sort != pane::SortBy::Size || pn.search.is_some() || pn.trash || pn.extra.is_some() {
+                pn.size_sorted = None;
+                continue;
+            }
+            let key = (pn.cwd.clone(), pn.items.len(), ver);
+            if pn.size_sorted.as_ref().is_some_and(|(k, at)| (k.0 == key.0 && k.1 == key.1 && k.2 == key.2) || (k.0 == key.0 && k.1 == key.1 && at.elapsed() < Duration::from_millis(400))) {
+                continue;
+            }
+            let mut changed = false;
+            for it in pn.items.iter_mut().filter(|i| i.dir) {
+                let b = dsize.get(&pn.cwd.join(&*it.name)).map_or(0, |s| s.bytes);
+                if it.size != b {
+                    it.size = b;
+                    changed = true;
+                }
+            }
+            if changed {
+                pn.resort(&st);
+            }
+            pn.size_sorted = Some((key, Instant::now()));
+        }
+    }
+
     /// Jedes Frame: Ordnerwechsel erkennen (Verlauf, Größen, Git) und Zwischenablage beobachten.
     fn track(&mut self) {
         self.dsize.poll();
+        self.size_sort();
         if let Some(Ok((dir, st))) = self.git_st_rx.as_ref().map(|r| r.try_recv()) {
             self.git_st_rx = None;
             if dir == self.seen_cwd {
@@ -6627,6 +6855,112 @@ impl App {
                 }
             }
         });
+    }
+
+    /// Fenster „Inhaltssuche“: Anfrage, Fortschritt, Treffer mit Begründung
+    fn ui_content_search(&mut self, ctx: &egui::Context) {
+        let Some((q, dir, search)) = self.csearch.as_mut() else { return };
+        let th = self.th;
+        let mut open = true;
+        let mut go = false;
+        let mut acts = Vec::new();
+        let name = dir.file_name().map_or_else(|| dir.display().to_string(), |n| n.to_string_lossy().into_owned());
+        egui::Window::new("Inhaltssuche").open(&mut open).collapsible(false).resizable(true).default_width(640.0).max_width(720.0).default_height(520.0).show(ctx, |ui| {
+            ui.label(egui::RichText::new(format!("Sucht in PDFs, Bildern (Texterkennung) und Dokumenten unter „{name}“ – alles lokal.")).size(12.0).color(th.sub));
+            ui.horizontal(|ui| {
+                let te = ui.add(egui::TextEdit::singleline(q).hint_text("z. B. finde die Rechnung von Media Markt").desired_width(ui.available_width() - 80.0));
+                if search.is_none() && !te.has_focus() && q.is_empty() {
+                    te.request_focus();
+                }
+                if (te.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))) || ui.button("Suchen").clicked() {
+                    go = true;
+                }
+            });
+            let Some(s) = search.as_ref() else { return };
+            let (n, t, done) = (s.scanned.load(Relaxed), s.total.load(Relaxed), s.done.load(Relaxed));
+            ui.horizontal(|ui| {
+                if !done {
+                    ui.spinner();
+                    if t > 0 {
+                        ui.add(egui::ProgressBar::new(n as f32 / t as f32).desired_width(160.0).desired_height(6.0));
+                    }
+                    ui.label(egui::RichText::new(format!("{n} von {t} Dateien gelesen …")).size(12.0).color(th.sub));
+                    if ui.small_button("Stopp").clicked() {
+                        s.cancel.store(true, Relaxed);
+                    }
+                } else {
+                    let k = s.hits.lock().map_or(0, |h| h.len());
+                    ui.label(egui::RichText::new(format!("{t} Dateien durchsucht – {k} Treffer")).size(12.0).color(th.sub));
+                }
+            });
+            ui.separator();
+            let Ok(hits) = s.hits.lock() else { return };
+            if hits.is_empty() && done {
+                ui.label("Nichts gefunden. Andere Begriffe versuchen oder einen übergeordneten Ordner öffnen.");
+            }
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                for h in hits.iter() {
+                    let fname = h.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                    let fr = egui::Frame::none().fill(th.field).rounding(6.0).inner_margin(Margin::same(8.0)).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.label(egui::RichText::new(&fname).strong());
+                        ui.label(egui::RichText::new(format!("Passt, weil: {}", h.why)).size(12.0).color(th.accent));
+                        if !h.snippet.is_empty() {
+                            ui.label(egui::RichText::new(&h.snippet).size(12.0).color(th.sub).italics());
+                        }
+                        ui.add(egui::Label::new(egui::RichText::new(h.path.parent().map(|p| p.display().to_string()).unwrap_or_default()).size(11.0).color(th.sub)).truncate());
+                    });
+                    let r = ui.interact(fr.response.rect, Id::new(("cs_hit", &h.path)), Sense::click());
+                    if r.double_clicked() {
+                        acts.push(Act::OpenFile(h.path.clone()));
+                    } else if r.clicked() {
+                        acts.push(Act::Preview(h.path.clone()));
+                    }
+                    if r.secondary_clicked() {
+                        acts.push(Act::Reveal(h.path.clone()));
+                    }
+                    r.on_hover_text("Klick: Schnellansicht · Doppelklick: öffnen · Rechtsklick: im Ordner zeigen");
+                    ui.add_space(4.0);
+                }
+            });
+        });
+        if go && !q.trim().is_empty() {
+            if let Some(s) = search.as_ref() {
+                s.cancel.store(true, Relaxed);
+            }
+            *search = Some(contentsearch::Search::start(q, dir, ctx));
+        }
+        if !open {
+            if let Some((_, _, Some(s))) = &self.csearch {
+                s.cancel.store(true, Relaxed);
+            }
+            self.csearch = None;
+        }
+        for a in acts {
+            self.apply(a);
+        }
+    }
+
+    /// Fenster „Bilder bearbeiten“ und Start im Hintergrund
+    fn ui_batch(&mut self, ctx: &egui::Context) {
+        let Some(o) = self.batch.as_mut() else { return };
+        match batch::window(ctx, &self.th, o) {
+            Some(true) => {
+                let o = self.batch.take().unwrap();
+                let (n, label) = (o.paths.len() as u64, format!("Bilder bearbeiten ({})", o.label()));
+                let done = Arc::new(AtomicU64::new(0));
+                let cancel = Arc::new(AtomicBool::new(false));
+                let (d2, c2) = (done.clone(), cancel.clone());
+                let refresh = o.paths.first().and_then(|p| p.parent()).map(Path::to_path_buf);
+                self.run_job_ex(&label, Some(done), n, Some(cancel), move || {
+                    let msg = batch::run(o, &d2, &c2);
+                    let _ = refresh;
+                    JobDone { msg, hist: Hist::None, locked: None }
+                });
+            }
+            Some(false) => self.batch = None,
+            None => {}
+        }
     }
 
     /// Rückfrage vor dem Deinstallieren
@@ -8232,6 +8566,12 @@ impl App {
                         self.pc_query.clear();
                         acts.push(Act::PcSearch);
                     }
+                    ui.horizontal(|ui| {
+                        ui.add_space(6.0);
+                        if ui.add(egui::Label::new(egui::RichText::new("Inhalt durchsuchen (PDFs, Bilder, Dokumente) …").size(12.0).color(th.accent)).sense(Sense::click())).on_hover_text("z. B. „finde die Rechnung von Media Markt“ – liest Text in PDFs, Bildern (Texterkennung) und Dokumenten im aktuellen Ordner").clicked() {
+                            acts.push(Act::ContentSearch(None));
+                        }
+                    });
                     if let Some(b) = &self.build {
                         ui.horizontal(|ui| {
                             ui.add_space(8.0);
@@ -8460,6 +8800,22 @@ impl App {
             if ui::menu_entry(ui, Some(Ic::Desktop), "Verknüpfung auf dem Desktop", "", true, false) {
                 acts.push(Act::Shortcut(exes.clone(), true));
             }
+        }
+        // Sprachnotizen und Untertitel (lokal mit Whisper)
+        let audio: Vec<PathBuf> = paths.iter().filter(|p| fsx::is_file(p) && convert::class_of(p) == convert::Class::Audio).cloned().collect();
+        let video: Vec<PathBuf> = paths.iter().filter(|p| fsx::is_file(p) && convert::class_of(p) == convert::Class::Video).cloned().collect();
+        let images: Vec<PathBuf> = paths.iter().filter(|p| fsx::is_file(p) && batch::is_image(p)).cloned().collect();
+        if !audio.is_empty() || !video.is_empty() || !images.is_empty() {
+            ui::menu_sep(ui);
+        }
+        if !audio.is_empty() && ui::menu_entry(ui, Some(Ic::Docs), "In Text umwandeln (Whisper)", "", true, false) {
+            acts.push(Act::Transcribe(audio, false));
+        }
+        if !video.is_empty() && ui::menu_entry(ui, Some(Ic::Docs), "Untertitel erzeugen (.srt)", "", true, false) {
+            acts.push(Act::Transcribe(video, true));
+        }
+        if !images.is_empty() && ui::menu_entry(ui, Some(Ic::Tools), &if images.len() > 1 { format!("{} Bilder bearbeiten …", images.len()) } else { "Bild stapelweise bearbeiten …".to_string() }, "", true, false) {
+            acts.push(Act::BatchImages(images));
         }
         if paths.iter().all(|p| fsx::is_file(&p)) {
             // Zielformate, die für alle ausgewählten Dateien gehen (bei einer Datei: alle für diese)
@@ -10020,6 +10376,7 @@ impl App {
                         .color(th.sub),
                 );
             }
+            update_ui(ui, th, &self.updater, &self.update_quit, true);
             for j in &self.jobs {
                 ui.spinner();
                 let done = j.prog.as_ref().map(|p| p.load(Relaxed));
@@ -10526,6 +10883,38 @@ impl App {
                     ui.add(egui::TextEdit::singleline(query).hint_text("Vorlagen suchen, z. B. images, music, git …").desired_width(ui.available_width()));
                 });
                 ui.add_space(4.0);
+                // Vorschläge passend zum Inhalt (einmal je Ordner ermittelt)
+                static SUGGEST: std::sync::Mutex<Option<(PathBuf, Vec<String>)>> = std::sync::Mutex::new(None);
+                let sug = {
+                    let mut g = SUGGEST.lock().unwrap_or_else(|e| e.into_inner());
+                    if g.as_ref().is_none_or(|(p, _)| p != dir) {
+                        let have = matico::presets("material-ordner");
+                        let v = foldericons::suggest(dir).into_iter().filter(|n| have.contains(n)).collect();
+                        *g = Some((dir.clone(), v));
+                    }
+                    g.as_ref().map(|x| x.1.clone()).unwrap_or_default()
+                };
+                if !sug.is_empty() && query.is_empty() {
+                    ui.label(egui::RichText::new("Vorschläge für diesen Ordner").size(12.0).strong().color(th.sub));
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
+                        for n in &sug {
+                            let spec = foldericons::Spec::Preset(n.clone());
+                            let (r, resp) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::click());
+                            let sel = cur.as_ref() == Some(&spec);
+                            ui.painter().rect_filled(r, 6.0, if sel { th.sel } else if resp.hovered() { th.hover } else { th.field });
+                            let ir = Rect::from_center_size(r.center() - vec2(0.0, 7.0), vec2(34.0, 34.0));
+                            icons.paint_spec(ui.painter(), ir, &spec);
+                            let label = foldericons::preset_label(n);
+                            let short: String = label.chars().take(10).collect();
+                            ui.painter().text(pos2(r.center().x, r.bottom() - 6.0), Align2::CENTER_BOTTOM, short, FontId::proportional(10.5), th.sub);
+                            if resp.on_hover_text(format!("{label} – passt zum Inhalt")).clicked() {
+                                pick = Some(Some(spec));
+                            }
+                        }
+                    });
+                    ui.add_space(2.0);
+                }
                 // Gruppen: Ordner/Symbole aus drei Icon-Themes und farbige Ordner
                 ui.horizontal_wrapped(|ui| {
                     for (k, l) in matico::PRESET_GROUPS.iter().copied().chain([("farben", "Farben")]) {
@@ -11444,6 +11833,9 @@ impl App {
                                 }
                             },
                         );
+                    });
+                    settings_card(ui, th, "Updates", |ui| {
+                        update_ui(ui, th, &self.updater, &self.update_quit, false);
                     });
                     settings_card(ui, th, "Deinstallieren", |ui| {
                         // Größen einmal im Hintergrund ermitteln (Modelle können viele GB groß sein)
@@ -12663,7 +13055,9 @@ impl eframe::App for App {
         self.track();
         prof::mark("track");
         self.ipc_poll(ctx);
+        prof::mark("ipc");
         self.frame_begin(ctx);
+        prof::mark("frame_begin");
         let mut acts: Vec<Act> = Vec::new();
         self.keys(ctx, &mut acts);
         prof::mark("keys");
@@ -12700,6 +13094,11 @@ impl eframe::App for App {
                 self.ui_tiles(ui, &mut acts);
             });
         prof::mark("central");
+        if std::env::var_os("FOLDEX_FRAMELOG").is_some() {
+            // Entwicklung: welcher Tab war zu sehen (für die Messung des Tab-Wechsels)
+            let t = format!("tab{}:{}", self.cur, self.tabs[self.cur].title().chars().take(12).collect::<String>().replace(' ', "_"));
+            prof::mark(Box::leak(t.into_boxed_str()));
+        }
         self.drive_drag(ctx);
         self.ui_snap_overlay(ctx);
         self.ui_windows(ctx);
@@ -12709,6 +13108,8 @@ impl eframe::App for App {
         self.ui_palette(ctx, &mut acts);
         self.ui_tools(ctx, &mut acts);
         self.ui_uninstall(ctx);
+        self.ui_batch(ctx);
+        self.ui_content_search(ctx);
         if let Some(w) = &mut self.printwin {
             if !w.ui(ctx, &th) {
                 if let Some(m) = w.result.take() {

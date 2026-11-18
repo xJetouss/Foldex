@@ -229,7 +229,7 @@ mod tests {
         std::fs::write(&keep, b"x").unwrap();
         // ein Prozess, der kurz läuft: das Skript muss auf ihn warten
         #[cfg(windows)]
-        let mut child = std::process::Command::new("cmd").args(["/c", "ping -n 3 127.0.0.1 >nul"]).spawn().unwrap();
+        let mut child = std::process::Command::new("ping").args(["-n", "4", "127.0.0.1"]).stdout(std::process::Stdio::null()).spawn().unwrap();
         #[cfg(not(windows))]
         let mut child = std::process::Command::new("sleep").arg("2").spawn().unwrap();
         let pid = child.id();

@@ -660,6 +660,8 @@ pub struct Pane {
     pub query: String,
     pub focus_search: bool,
     pub search: Option<SearchView>,
+    /// Sortieren nach Größe: zuletzt mit Ordnergrößen abgeglichen ((Ordner, Anzahl, Stand), Zeitpunkt)
+    pub size_sorted: Option<((PathBuf, usize, u64), std::time::Instant)>,
     // Laden
     gen: Arc<AtomicUsize>,
     load_rx: Option<mpsc::Receiver<Loaded>>,
@@ -734,6 +736,7 @@ impl Pane {
             folders_first: self.folders_first,
             mode: self.mode,
             trash: false,
+            size_sorted: None,
             start: false,
             start_settings: false,
             ctrash: None,
