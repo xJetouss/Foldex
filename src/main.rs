@@ -4995,6 +4995,14 @@ impl App {
             } else if let Some(f) = view.strip_prefix("preview:") {
                 // Schnellansicht-Tab (Leertaste) für ein Bildschirmfoto
                 self.open_view(PathBuf::from(f));
+            } else if let Some(f) = view.strip_prefix("reveal:") {
+                // Datei im Ordner auswählen und die Vorschau neben der Liste zeigen (FOLDEX_SHOT_PVFRAC = Anteil)
+                self.apply(Act::Reveal(PathBuf::from(f)));
+                let pn = self.pane_mut();
+                pn.preview_on = true;
+                if let Some(fr) = std::env::var("FOLDEX_SHOT_PVFRAC").ok().and_then(|v| v.parse::<f32>().ok()) {
+                    pn.preview_frac = fr;
+                }
             }
         }
         // FOLDEX_SHOT_CMDS="term.new;tab.close;…": ab Bild 10 alle 10 Bilder einen Befehl ausführen (wie per Tastenkürzel)

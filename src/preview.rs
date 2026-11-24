@@ -1157,12 +1157,25 @@ impl Preview {
             }
             self.player = Some(pl);
         }
+        // Großes Preview: Werkzeugleiste oben rechts wie bei Bild und Text – unter dem Player bleibt nur die Steuerleiste
+        let mut edit = false;
+        let mut avail = avail;
+        if self.big {
+            let y0 = ui.cursor().min.y;
+            let video = self.player.as_ref().is_some_and(Player::has_video);
+            let tip = if video { "Videoeditor: zuschneiden, ausschneiden, Ton, Tempo, Drehen, Auflösung, Format" } else { "Audioeditor: schneiden, ein-/ausblenden, Lautstärke, Normalisieren, Format" };
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    edit = crate::ui::cmd_btn(ui, th, Some(crate::ui::Ic::Rename), "Bearbeiten", true, false).on_hover_text(tip).clicked();
+                });
+            });
+            ui.add_space(4.0);
+            avail.y -= ui.cursor().min.y - y0;
+        }
         let pl = self.player.as_mut()?;
         let top = ui.cursor().min;
         // Platz über der Leiste (Fehlermeldung des Players steht unter der Leiste)
-        // Platz für den „Bearbeiten“-Knopf im großen Preview freihalten
-        let edit_h = if self.big { 44.0 } else { 0.0 };
-        let room = (avail.y - BAR - 8.0 - edit_h - if pl.err.is_some() { 18.0 } else { 0.0 }).max(48.0);
+        let room = (avail.y - BAR - 8.0 - if pl.err.is_some() { 18.0 } else { 0.0 }).max(48.0);
         if pl.has_video() {
             let h = (w / pl.aspect()).min(room);
             let (r, _) = ui.allocate_exact_size(vec2(w, h), egui::Sense::hover());
@@ -1201,11 +1214,9 @@ impl Preview {
         if self.hot && !pl.fullscreen {
             pl.keys(ui);
         }
-        // Audio- bzw. Videoeditor nur im großen Preview (eigener Tab)
-        if self.big {
-            ui.add_space(8.0);
-            let tip = if pl.has_video() { "Videoeditor: zuschneiden, ausschneiden, Ton, Tempo, Drehen, Auflösung, Format" } else { "Audioeditor: schneiden, ein-/ausblenden, Lautstärke, Normalisieren, Format" };
-            if crate::ui::cmd_btn(ui, th, Some(crate::ui::Ic::Rename), "Bearbeiten", true, false).on_hover_text(tip).clicked() {
+        // Audio- bzw. Videoeditor nur im großen Preview (eigener Tab), Knopf oben in der Werkzeugleiste
+        if edit {
+            {
                 pl.pause();
                 let vol = pl.volume;
                 if pl.has_video() {

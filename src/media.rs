@@ -752,6 +752,7 @@ impl Player {
                 "menu" => self.menu = true,
                 "custom" => self.custom = Some(String::new()),
                 "pip" => self.pip_request = true,
+                "fs" => self.fullscreen = true,
                 _ => {
                     if let Some(s) = tok.strip_prefix("s=").and_then(parse_speed) {
                         self.speed = s;
@@ -871,12 +872,7 @@ impl Player {
         self.boost_badge(ui, r);
         self.load_subs();
         self.paint_subs(ui, r);
-        if self.paused && !self.ended {
-            // großes Abspielsymbol in der Mitte
-            let c = r.center();
-            ui.painter().circle_filled(c, 28.0, Color32::from_black_alpha(140));
-            play_icon(ui.painter(), Rect::from_center_size(c + vec2(2.0, 0.0), vec2(22.0, 22.0)), Color32::WHITE);
-        }
+        // kein zusätzliches Abspielsymbol im Bild: gestartet wird über die Steuerleiste (oder Klick ins Bild)
     }
 
     /// Gedrückthalten (Bild, Wellenform): nach kurzer Zeit 2× – nur bei laufender Wiedergabe unter 2×, eine
@@ -964,12 +960,32 @@ impl Player {
             self.toggle();
         }
         x += 38.0;
-        // Zeit
+        // Platz einteilen, damit auch in einer schmalen Vorschau nichts überlappt: reicht er nicht, wird zuerst
+        // der Lautstärkeregler zum Symbol (Mausrad darauf ändert die Lautstärke), dann die Zeit kürzer
+        // (nur aktuelle Zeit), zuletzt entfällt sie – die Zeitleiste behält immer mindestens 50 px
         let cur = self.drag.unwrap_or_else(|| self.pos());
-        let time = if self.info.duration > 0.0 { format!("{} / {}", hms(cur), hms(self.info.duration)) } else { hms(cur) };
-        let g = ui.fonts(|f| f.layout_no_wrap(time, FontId::monospace(11.5), sub));
-        p.galley(pos2(x, mid - g.size().y / 2.0), g.clone(), sub);
-        x += g.size().x + 12.0;
+        let buttons = 1 + usize::from(self.info.has_video && !self.fullscreen) + usize::from(self.info.has_video && !self.pip) + usize::from(self.info.has_video && self.has_subs());
+        let room = r.right() - x - buttons as f32 * 34.0;
+        let width = |s: &str| ui.fonts(|f| f.layout_no_wrap(s.to_string(), FontId::monospace(11.5), sub).size().x);
+        let full = if self.info.duration > 0.0 { format!("{} / {}", hms(cur), hms(self.info.duration)) } else { hms(cur) };
+        let short = hms(cur);
+        const TRACK: f32 = 50.0;
+        const VOL_FULL: f32 = 101.0;
+        const VOL_ICON: f32 = 38.0;
+        let (time, slider) = if room >= width(&full) + 12.0 + TRACK + VOL_FULL {
+            (Some(full), true)
+        } else if room >= width(&full) + 12.0 + TRACK + VOL_ICON {
+            (Some(full), false)
+        } else if room >= width(&short) + 12.0 + TRACK + VOL_ICON {
+            (Some(short), false)
+        } else {
+            (None, false)
+        };
+        if let Some(time) = time {
+            let g = ui.fonts(|f| f.layout_no_wrap(time, FontId::monospace(11.5), sub));
+            p.galley(pos2(x, mid - g.size().y / 2.0), g.clone(), sub);
+            x += g.size().x + 12.0;
+        }
         // rechts: Vollbild, Lautstärke
         let mut right = r.right();
         // Bild-in-Bild: schwebendes Fenster bzw. zurück in die Vorschau (nicht aus dem Vollbild heraus)
@@ -1036,34 +1052,51 @@ impl Player {
             self.settings_menu(ui, th, gb);
         }
         right -= 34.0;
-        let vol_w = 64.0;
+        // Lautstärkeregler (bei wenig Platz nur das Lautsprechersymbol)
+        let vol_w = if slider { 64.0 } else { 0.0 };
         let vr = Rect::from_min_max(pos2(right - vol_w, mid - 8.0), pos2(right - 4.0, mid + 8.0));
-        let resp = ui.interact(vr, ui.id().with("pl_vol"), Sense::click_and_drag());
-        if let Some(pt) = resp.interact_pointer_pos().filter(|_| resp.dragged() || resp.clicked()) {
-            self.volume = ((pt.x - vr.left()) / vr.width()).clamp(0.0, 1.0);
-            self.muted = false;
-            self.apply_volume();
+        if slider {
+            let resp = ui.interact(vr, ui.id().with("pl_vol"), Sense::click_and_drag());
+            if let Some(pt) = resp.interact_pointer_pos().filter(|_| resp.dragged() || resp.clicked()) {
+                self.volume = ((pt.x - vr.left()) / vr.width()).clamp(0.0, 1.0);
+                self.muted = false;
+                self.apply_volume();
+            }
+            let shown = if self.muted { 0.0 } else { self.volume };
+            let line = Rect::from_min_max(pos2(vr.left(), mid - 2.0), pos2(vr.right(), mid + 2.0));
+            p.rect_filled(line, 2.0, track);
+            p.rect_filled(Rect::from_min_max(line.min, pos2(line.left() + line.width() * shown, line.bottom())), 2.0, th.accent);
+            p.circle_filled(pos2(line.left() + line.width() * shown, mid), if resp.hovered() || resp.dragged() { 6.0 } else { 4.5 }, fg);
+            resp.on_hover_text(format!("Lautstärke {} % (↑/↓)", (self.volume * 100.0).round()));
         }
-        let shown = if self.muted { 0.0 } else { self.volume };
-        let line = Rect::from_min_max(pos2(vr.left(), mid - 2.0), pos2(vr.right(), mid + 2.0));
-        p.rect_filled(line, 2.0, track);
-        p.rect_filled(Rect::from_min_max(line.min, pos2(line.left() + line.width() * shown, line.bottom())), 2.0, th.accent);
-        p.circle_filled(pos2(line.left() + line.width() * shown, mid), if resp.hovered() || resp.dragged() { 6.0 } else { 4.5 }, fg);
-        resp.on_hover_text(format!("Lautstärke {} % (↑/↓)", (self.volume * 100.0).round()));
-        let sb = Rect::from_center_size(pos2(vr.left() - 16.0, mid), vec2(26.0, 26.0));
+        let sb = Rect::from_center_size(pos2(vr.left() - if slider { 16.0 } else { 13.0 }, mid), vec2(26.0, 26.0));
         let resp = ui.interact(sb, ui.id().with("pl_mute"), Sense::click());
         if resp.hovered() {
             p.rect_filled(sb, 6.0, if dark { Color32::from_white_alpha(40) } else { th.hover });
+            // ohne Regler: Mausrad über dem Symbol ändert die Lautstärke
+            let scroll = ui.input(|i| i.raw_scroll_delta.y);
+            if !slider && scroll != 0.0 {
+                self.volume = (self.volume + scroll.signum() * 0.05).clamp(0.0, 1.0);
+                self.muted = false;
+                self.apply_volume();
+            }
         }
         speaker_icon(&p, Rect::from_center_size(sb.center(), vec2(15.0, 15.0)), fg, if self.muted { 0.0 } else { self.volume });
-        if resp.on_hover_text(if self.muted { "Ton an (M)" } else { "Stumm (M)" }).clicked() {
+        let tip = if slider {
+            if self.muted { "Ton an (M)".to_string() } else { "Stumm (M)".to_string() }
+        } else {
+            format!("Lautstärke {} % – Mausrad ändert, Klick = {} (M)", (self.volume * 100.0).round(), if self.muted { "Ton an" } else { "stumm" })
+        };
+        if resp.on_hover_text(tip).clicked() {
             self.muted = !self.muted;
             self.apply_volume();
         }
         right = sb.left() - 8.0;
-        // Zeitleiste
-        if self.info.duration > 0.0 && right - x > 30.0 {
-            let tr = Rect::from_min_max(pos2(x, mid - 9.0), pos2(right, mid + 9.0));
+        // Zeitleiste – in der Leiste, oder bei sehr wenig Platz als schmale Linie über die ganze Breite am oberen Rand
+        let inline = right - x > 30.0;
+        if self.info.duration > 0.0 {
+            let tr = if inline { Rect::from_min_max(pos2(x, mid - 9.0), pos2(right, mid + 9.0)) } else { Rect::from_min_max(pos2(r.left() + 6.0, r.top() - 1.0), pos2(r.right() - 6.0, r.top() + 5.0)) };
+            let mid = tr.center().y;
             let resp = ui.interact(tr, ui.id().with("pl_seek"), Sense::click_and_drag());
             let dur = self.info.duration;
             let at = move |pt: Pos2| ((pt.x - tr.left()) / tr.width()).clamp(0.0, 1.0) as f64 * dur;
@@ -1283,15 +1316,16 @@ impl Player {
             ui.set_min_size(screen.size());
             ui.painter().rect_filled(screen, 0.0, Color32::BLACK);
             self.video(ui, screen);
-            // Bedienleiste: erscheint, sobald sich die Maus im unteren Viertel bewegt, und verschwindet nach
-            // 2,5 s ohne Bewegung wieder (offenes Menü oder gedrückte Maustaste halten sie)
+            // Bedienleiste: immer sichtbar, solange pausiert ist; während der Wiedergabe bei jeder Mausbewegung
+            // (egal wo) und erst nach 2,5 s ohne Bewegung ausgeblendet (offenes Menü, gedrückte Maustaste oder
+            // Maus über der Leiste halten sie)
             let (moved, down, at) = ui.input(|i| (i.pointer.delta() != egui::Vec2::ZERO, i.pointer.any_down(), i.pointer.hover_pos()));
             if moved || down {
                 self.last_move = Instant::now();
             }
-            let zone = at.is_some_and(|p| p.y >= screen.bottom() - screen.height() / 4.0);
+            let over_bar = at.is_some_and(|p| p.y >= screen.bottom() - 90.0);
             let recent = self.last_move.elapsed() < Duration::from_millis(2500);
-            let show = self.menu || self.speed_drag.is_some() || (zone && (recent || down));
+            let show = self.paused || self.ended || self.menu || self.speed_drag.is_some() || recent || down || over_bar;
             if show {
                 let bar = Rect::from_min_max(pos2(screen.left(), screen.bottom() - 64.0), screen.max);
                 ui.painter().rect_filled(bar, 0.0, Color32::from_black_alpha(170));
