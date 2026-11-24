@@ -1,6 +1,6 @@
 [package]
 name = "foldex"
-version = "0.9.1"
+version = "0.9.3"
 edition = "2021"
 description = "Foldex – schneller, RAM-sparsamer Datei-Explorer"
 
