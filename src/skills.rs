@@ -78,6 +78,24 @@ const BUILTIN: &[(&str, &str, &str, &str)] = &[
     ("alt-text", "Bilder", "Bildbeschreibung (Barrierefreiheit)", "Beschreibe das angehängte bzw. markierte Bild sachlich in ein bis zwei Sätzen als Alternativtext. {text}"),
 ];
 
+/// Englische Namen der eingebauten Kurzbefehle (gleicher Prompt; die KI antwortet dann auf Englisch).
+const ENGLISH: &[(&str, &str)] = &[
+    ("aufräumen", "tidy"), ("umbenennen", "rename"), ("duplikate", "duplicates"), ("groß", "largest"),
+    ("zusammenfassen", "summarize"), ("sortieren", "sort-by-date"), ("archivieren", "archive"), ("finde", "find"),
+    ("bericht", "overview"), ("erklären", "explain"), ("doku", "docs"), ("übersetzen-code", "port-code"),
+    ("sicherheit", "security"), ("korrigieren", "proofread"), ("kürzer", "shorter"), ("förmlich", "formal"),
+    ("locker", "casual"), ("übersetzen", "translate"), ("antwort", "reply"), ("brief", "letter"),
+    ("stichpunkte", "bullets"), ("protokoll", "minutes"), ("bewerbung", "cover-letter"), ("titel", "headlines"),
+    ("tweet", "post"), ("einfach", "eli5"), ("lernplan", "study-plan"), ("pro-contra", "pros-cons"),
+    ("ideen", "ideas"), ("vergleich", "compare"), ("faktencheck", "fact-check"), ("tabelle", "table"),
+    ("rechnen", "calculate"), ("bild", "image-prompt"),
+];
+
+/// englischer Name eines eingebauten Kurzbefehls (falls er sich vom deutschen unterscheidet)
+pub fn english(name: &str) -> Option<&'static str> {
+    ENGLISH.iter().find(|(de, _)| *de == name).map(|(_, en)| *en)
+}
+
 pub fn builtin() -> Vec<Skill> {
     BUILTIN.iter().map(|(n, g, d, p)| Skill { name: n.to_string(), desc: d.to_string(), prompt: p.to_string(), group: g.to_string() }).collect()
 }
@@ -131,8 +149,10 @@ pub fn matching(input: &str) -> Vec<Skill> {
     }
     let q = fold(q);
     let all = all();
-    let mut v: Vec<Skill> = all.iter().filter(|s| fold(&s.name).starts_with(&q)).cloned().collect();
-    v.extend(all.into_iter().filter(|s| !fold(&s.name).starts_with(&q) && (fold(&s.name).contains(&q) || fold(&s.desc).contains(&q))));
+    // deutscher oder englischer Name beginnt mit der Eingabe; sonst enthält Name/Beschreibung sie
+    let starts = |s: &Skill| fold(&s.name).starts_with(&q) || english(&s.name).is_some_and(|e| e.starts_with(&q));
+    let mut v: Vec<Skill> = all.iter().filter(|s| starts(s)).cloned().collect();
+    v.extend(all.into_iter().filter(|s| !starts(s) && (fold(&s.name).contains(&q) || english(&s.name).is_some_and(|e| e.contains(&q)) || fold(&s.desc).contains(&q))));
     v
 }
 
@@ -140,15 +160,21 @@ pub fn matching(input: &str) -> Vec<Skill> {
 pub fn expand(input: &str) -> Option<String> {
     let s = input.trim_start().strip_prefix('/')?;
     let (name, rest) = s.split_once(char::is_whitespace).unwrap_or((s, ""));
-    let skill = all().into_iter().find(|k| fold(&k.name) == fold(name))?;
+    let low = name.to_lowercase();
+    let (skill, en) = match all().into_iter().find(|k| fold(&k.name) == fold(name)) {
+        Some(k) => (k, false),
+        None => (all().into_iter().find(|k| english(&k.name) == Some(low.as_str()))?, true),
+    };
     let rest = rest.trim();
-    Some(if skill.prompt.contains("{text}") {
+    let p = if skill.prompt.contains("{text}") {
         skill.prompt.replace("{text}", rest).trim().to_string()
     } else if rest.is_empty() {
         skill.prompt
     } else {
         format!("{}\n\n{rest}", skill.prompt)
-    })
+    };
+    // über den englischen Namen aufgerufen: Antwort auf Englisch
+    Some(if en { format!("{p}\n\nAnswer in English.") } else { p })
 }
 
 #[cfg(test)]
@@ -164,5 +190,10 @@ mod tests {
         assert_eq!(matching("/auf")[0].name, "aufräumen");
         assert!(matching("/erkl").iter().any(|s| s.name == "erklären"));
         assert!(BUILTIN.len() >= 50);
+        // englische Namen: gleicher Prompt, Antwort auf Englisch
+        let e = expand("/tidy").unwrap();
+        assert!(e.starts_with("Räume") && e.ends_with("Answer in English."));
+        assert_eq!(matching("/tid")[0].name, "aufräumen");
+        assert!(ENGLISH.iter().all(|(de, _)| BUILTIN.iter().any(|b| b.0 == *de)), "englischer Name ohne Kurzbefehl");
     }
 }

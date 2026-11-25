@@ -151,7 +151,7 @@ pub fn run(o: Opts, done: &AtomicU64, cancel: &AtomicBool) -> String {
 pub fn window(ctx: &egui::Context, th: &Theme, o: &mut Opts) -> Option<bool> {
     let mut open = true;
     let mut res = None;
-    egui::Window::new(format!("{} Bilder bearbeiten", o.paths.len()))
+    egui::Window::new(if o.paths.len() == 1 { "Bild bearbeiten".to_string() } else { format!("{} Bilder bearbeiten", o.paths.len()) })
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -216,10 +216,10 @@ pub fn window(ctx: &egui::Context, th: &Theme, o: &mut Opts) -> Option<bool> {
             ui.separator();
             ui.checkbox(&mut o.subfolder, "In Unterordner „Bearbeitet“ speichern (sonst daneben mit „-bearbeitet“)");
             ui.horizontal(|ui| {
-                if ui.add_enabled(!o.is_empty(), egui::Button::new(egui::RichText::new("Starten").strong())).clicked() {
+                if ui.add_enabled(!o.is_empty(), egui::Button::new(egui::RichText::new("Starten").strong().color(if th.dark { th.bg } else { egui::Color32::WHITE })).fill(th.accent).min_size(egui::vec2(96.0, 30.0))).clicked() {
                     res = Some(true);
                 }
-                if ui.button("Abbrechen").clicked() {
+                if ui.add(egui::Button::new("Abbrechen").min_size(egui::vec2(96.0, 30.0))).clicked() {
                     res = Some(false);
                 }
                 if !o.is_empty() {

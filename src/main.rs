@@ -110,7 +110,10 @@ fn apply_theme(ctx: &egui::Context, th: &Theme) {
         v.override_text_color = Some(th.text);
         v.hyperlink_color = th.accent;
         v.window_stroke = Stroke::new(1.0, th.line);
-        v.window_rounding = Rounding::same(10.0);
+        v.window_rounding = Rounding::same(12.0);
+        // Fenster mit Titelleiste: kein grauer Balken oben – Titel auf derselben Fläche wie der Inhalt
+        // (wie bei Teilen, Ordner-Icon und Einstellungen)
+        v.window_highlight_topmost = false;
         v.menu_rounding = Rounding::same(8.0);
         v.popup_shadow = egui::epaint::Shadow {
             offset: vec2(0.0, 6.0),
@@ -148,6 +151,8 @@ fn apply_theme(ctx: &egui::Context, th: &Theme) {
         s.spacing.item_spacing = vec2(8.0, 4.0);
         s.spacing.button_padding = vec2(10.0, 5.0);
         s.spacing.menu_margin = Margin::same(6.0);
+        s.spacing.window_margin = Margin::same(16.0);
+        s.text_styles.insert(egui::TextStyle::Heading, FontId::proportional(17.0));
         s.spacing.scroll = egui::style::ScrollStyle::floating();
         s.spacing.scroll.bar_width = 8.0;
         s.spacing.scroll.floating_width = 4.0;
@@ -156,6 +161,13 @@ fn apply_theme(ctx: &egui::Context, th: &Theme) {
         s.text_styles.insert(egui::TextStyle::Small, FontId::proportional(12.0));
         s.interaction.selectable_labels = false;
     });
+}
+
+/// Hauptknopf eines Fensters (Akzentfarbe), gleich groß wie die übrigen Knöpfe.
+fn primary_button(th: &Theme, text: &str) -> egui::Button<'static> {
+    egui::Button::new(egui::RichText::new(text.to_string()).strong().color(if th.dark { th.bg } else { Color32::WHITE }))
+        .fill(th.accent)
+        .min_size(vec2(96.0, 30.0))
 }
 
 fn setup_fonts(ctx: &egui::Context) {
@@ -1349,7 +1361,13 @@ impl App {
         if launch.maximized {
             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
         }
-        let st = Settings::load();
+        let mut st = Settings::load();
+        // nur für Bildschirmfotos (FOLDEX_SHOT_THEME=light|dark): Farbschema im Speicher festlegen
+        match std::env::var("FOLDEX_SHOT_THEME").as_deref() {
+            Ok("light") => st.theme = 1,
+            Ok("dark") => st.theme = 2,
+            _ => {}
+        }
         ctx.style_mut(|s| s.animation_time = if st.animations { 0.12 } else { 0.0 });
         theme_pref(&ctx, st.theme);
         let themes = themes::Store::load();
@@ -4957,6 +4975,10 @@ impl App {
                     c.attach(f.split(';').map(PathBuf::from).collect());
                 }
                 self.editor_ai = Some(c);
+            }
+            // FOLDEX_SHOT_VIEW=rules: Fenster „Auswahl nach Regeln“
+            if view == "rules" {
+                self.rules = Some(RulesWin { kind: tools::RuleKind::Ext, value: String::new(), mode: tools::SelMode::Replace, err: None });
             }
             if view == "imggen" {
                 self.imggen = Some(localui::ImageGen::new(std::env::temp_dir()));
@@ -12217,7 +12239,9 @@ impl App {
             .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.set_width(420.0);
-                egui::ComboBox::from_label("Regel").selected_text(w.kind.label()).width(300.0).show_ui(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 8.0;
+                ui.label(egui::RichText::new("Welche Dateien sollen ausgewählt werden?").size(12.5).color(self.th.sub));
+                egui::ComboBox::from_id_salt("rule_kind").selected_text(w.kind.label()).width(ui.available_width()).show_ui(ui, |ui| {
                     for k in tools::RuleKind::ALL {
                         ui.selectable_value(&mut w.kind, k, k.label());
                     }
@@ -12231,18 +12255,22 @@ impl App {
                 }));
                 te.request_focus();
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut w.mode, tools::SelMode::Replace, "Neue Auswahl");
-                    ui.radio_value(&mut w.mode, tools::SelMode::Add, "Hinzufügen");
-                    ui.radio_value(&mut w.mode, tools::SelMode::Remove, "Entfernen");
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    for (m, l) in [(tools::SelMode::Replace, "Neue Auswahl"), (tools::SelMode::Add, "Hinzufügen"), (tools::SelMode::Remove, "Entfernen")] {
+                        if ui.selectable_label(w.mode == m, l).clicked() {
+                            w.mode = m;
+                        }
+                    }
                 });
                 if let Some(e) = &w.err {
                     ui.label(egui::RichText::new(e).color(self.th.danger));
                 }
+                ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    if ui.button("Auswählen").clicked() || ui.input(|i| i.key_pressed(Key::Enter)) {
+                    if ui.add(primary_button(&self.th, "Auswählen")).clicked() || ui.input(|i| i.key_pressed(Key::Enter)) {
                         apply = true;
                     }
-                    if ui.button("Schließen").clicked() || ui.input(|i| i.key_pressed(Key::Escape)) {
+                    if ui.add(egui::Button::new("Schließen").min_size(vec2(96.0, 30.0))).clicked() || ui.input(|i| i.key_pressed(Key::Escape)) {
                         close = true;
                     }
                 });

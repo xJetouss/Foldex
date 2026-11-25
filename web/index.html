@@ -12,16 +12,31 @@
 <link rel="icon" type="image/png" href="favicon.png">
 <script>
   // gespeicherte Sprache vor dem ersten Zeichnen setzen (kein Aufblitzen)
-  try { if (localStorage.getItem('foldex-lang') === 'de') document.documentElement.lang = 'de'; } catch (e) {}
+  try {
+    if (localStorage.getItem('foldex-lang') === 'de') document.documentElement.lang = 'de';
+    if (localStorage.getItem('foldex-theme') === 'light') document.documentElement.dataset.theme = 'light';
+  } catch (e) {}
 </script>
 <style>
 :root {
   --bg: #000; --card: rgba(255,255,255,.035); --card-2: rgba(255,255,255,.06);
   --line: rgba(255,255,255,.09); --line-2: rgba(255,255,255,.16);
-  --text: #f7f7f7; --sub: #9aa0ab; --dim: #6b717c;
-  --blue: #4f8eff; --blue-2: #7fb0ff;
+  --text: #f7f7f7; --text-2: #d6dae2; --sub: #9aa0ab; --dim: #6b717c;
+  --blue: #4f8eff; --blue-2: #7fb0ff; --blue-soft: rgba(79,142,255,.12);
+  --input: #05070b; --header: rgba(0,0,0,.62); --menu: rgba(0,0,0,.96); --win: #0b0d12; --final: #04060a;
+  --code: #dfe6f3; --hover: rgba(255,255,255,.1); --shadow: rgba(0,0,0,.6);
   --radius: 16px;
   color-scheme: dark;
+}
+/* helles Thema */
+:root[data-theme="light"] {
+  --bg: #f5f7fb; --card: #ffffff; --card-2: #eef2f8;
+  --line: rgba(15,23,42,.09); --line-2: rgba(15,23,42,.16);
+  --text: #0d1117; --text-2: #2b3240; --sub: #566070; --dim: #7a8392;
+  --blue: #2f74f5; --blue-2: #2563eb; --blue-soft: rgba(47,116,245,.1);
+  --input: #ffffff; --header: rgba(245,247,251,.78); --menu: rgba(245,247,251,.98); --win: #ffffff; --final: #eaf0fb;
+  --code: #1e293b; --hover: rgba(15,23,42,.06); --shadow: rgba(15,23,42,.12);
+  color-scheme: light;
 }
 /* Sprache: jeder Text steht zweimal da (lang="en" / lang="de"), sichtbar ist nur die gewählte */
 :root[lang="en"] [lang="de"], :root[lang="de"] [lang="en"] { display: none !important; }
@@ -36,7 +51,7 @@ body {
 img { max-width: 100%; }
 a { color: var(--blue-2); text-decoration: none; }
 a:hover { text-decoration: underline; }
-code { font: .9em Consolas, "Cascadia Code", ui-monospace, monospace; background: var(--card-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; color: #dfe6f3; }
+code { font: .9em Consolas, "Cascadia Code", ui-monospace, monospace; background: var(--card-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; color: var(--code); }
 .wrap { max-width: 1200px; margin: 0 auto; padding: 0 28px; }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 8px; }
 svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
@@ -52,12 +67,12 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 }
 .btn:hover { text-decoration: none; filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 14px 30px -12px rgba(79,142,255,.9), inset 0 1px 0 rgba(255,255,255,.35); }
 .btn.ghost { background: var(--card-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
-.btn.ghost:hover { background: rgba(255,255,255,.1); }
+.btn.ghost:hover { background: var(--hover); }
 .btn.small { padding: 8px 16px; font-size: 14px; }
 .btn.big { padding: 15px 30px; font-size: 16px; }
 
 /* ── Kopf ── */
-header.top { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); background: rgba(0,0,0,.62); border-bottom: 1px solid var(--line); }
+header.top { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); background: var(--header); border-bottom: 1px solid var(--line); }
 header.top .wrap { display: flex; align-items: center; gap: 10px; height: 64px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 750; font-size: 18px; color: var(--text); letter-spacing: -.01em; margin-right: 18px; }
 .brand:hover { text-decoration: none; }
@@ -67,7 +82,11 @@ nav.links a { color: var(--sub); font-size: 14px; padding: 6px 10px; border-radi
 nav.links a:hover, nav.links a.on { color: var(--text); background: var(--card-2); text-decoration: none; }
 .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .pill-btn { height: 36px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--card-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); font: 600 13.5px/1 inherit; cursor: pointer; }
-.pill-btn:hover { background: rgba(255,255,255,.1); }
+.pill-btn:hover { background: var(--hover); }
+.theme-btn { width: 36px; padding: 0; justify-content: center; }
+.theme-btn .moon { display: none; }
+:root[data-theme="light"] .theme-btn .sun { display: none; }
+:root[data-theme="light"] .theme-btn .moon { display: block; }
 .menu-btn { display: none; width: 36px; padding: 0; justify-content: center; }
 
 /* ── Hero ── */
@@ -89,9 +108,9 @@ nav.links a:hover, nav.links a.on { color: var(--text); background: var(--card-2
 .hero .sub-links a { color: var(--sub); }
 
 /* Bildschirmfoto im Fensterrahmen mit Leuchten */
-.window { position: relative; border-radius: 14px; background: #0b0d12; box-shadow: 0 0 0 1px var(--line-2), 0 30px 80px -20px rgba(79,142,255,.35), 0 20px 60px rgba(0,0,0,.6); overflow: hidden; }
+.window { position: relative; border-radius: 14px; background: var(--win); box-shadow: 0 0 0 1px var(--line-2), 0 30px 80px -20px rgba(79,142,255,.35), 0 20px 60px var(--shadow); overflow: hidden; }
 .window .bar { height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 12px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--dim); }
-.window .bar i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.14); }
+.window .bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-2); }
 .window .bar span { margin-left: 8px; }
 figure.shot { margin: 0; cursor: zoom-in; }
 figure.shot img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; }
@@ -117,15 +136,15 @@ section { padding: 120px 0 0; }
 .ic { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; color: var(--blue-2); background: rgba(79,142,255,.12); box-shadow: inset 0 0 0 1px rgba(79,142,255,.25); flex: none; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .checks { margin: 0; padding: 0; list-style: none; }
-.checks li { padding: 5px 0 5px 28px; position: relative; color: #d6dae2; }
+.checks li { padding: 5px 0 5px 28px; position: relative; color: var(--text-2); }
 .checks li::before {
   content: ""; position: absolute; left: 0; top: 9px; width: 18px; height: 18px; border-radius: 50%;
   background: rgba(79,142,255,.15) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237fb0ff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center / 12px no-repeat;
 }
 
 /* ── Suche ── */
-.search-demo { background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border-radius: 18px; box-shadow: inset 0 0 0 1px var(--line-2), 0 30px 80px -30px rgba(79,142,255,.45); padding: 18px; }
-.sbox { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; background: #05070b; box-shadow: inset 0 0 0 1px rgba(79,142,255,.45), 0 0 0 4px rgba(79,142,255,.1); font: 16px/1.2 Consolas, "Cascadia Code", ui-monospace, monospace; }
+.search-demo { background: var(--card); border-radius: 18px; box-shadow: inset 0 0 0 1px var(--line-2), 0 30px 80px -30px rgba(79,142,255,.45); padding: 18px; }
+.sbox { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; background: var(--input); box-shadow: inset 0 0 0 1px rgba(79,142,255,.45), 0 0 0 4px rgba(79,142,255,.1); font: 16px/1.2 Consolas, "Cascadia Code", ui-monospace, monospace; }
 .sbox svg.i { color: var(--blue-2); width: 20px; height: 20px; }
 .sbox .q { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; }
 .sbox .q .k { color: var(--blue-2); }
@@ -163,7 +182,7 @@ section { padding: 120px 0 0; }
 
 /* Umbenennen-Beispiel */
 .rename { background: var(--card); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line-2), 0 30px 70px -30px rgba(79,142,255,.4); padding: 24px; }
-.rn-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: #05070b; box-shadow: inset 0 0 0 1px var(--line); font: 15.5px/1.2 Consolas, "Cascadia Code", ui-monospace, monospace; }
+.rn-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--input); box-shadow: inset 0 0 0 1px var(--line); font: 15.5px/1.2 Consolas, "Cascadia Code", ui-monospace, monospace; }
 .rn-row .ficon { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; background: rgba(79,142,255,.12); color: var(--blue-2); }
 .rn-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rn-row .ext { color: var(--blue-2); font-weight: 700; border-bottom: 2px solid var(--blue); }
@@ -194,6 +213,15 @@ section { padding: 120px 0 0; }
 .skill code { color: var(--blue-2); background: none; border: 0; padding: 0; font-size: 14px; }
 .skill > span { color: var(--sub); font-size: 14.5px; }
 
+/* Skills */
+.skill-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
+.sgroup { background: var(--card); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line); padding: 18px; }
+.sgroup h4 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+.sgroup ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.sgroup li { display: grid; grid-template-columns: 136px 1fr; gap: 10px; font-size: 14px; color: var(--sub); align-items: baseline; }
+.sgroup code { background: none; border: 0; padding: 0; color: var(--blue-2); font-size: 13px; white-space: nowrap; }
+.skill-note { text-align: center; color: var(--sub); font-size: 14.5px; margin-top: 18px; }
+
 /* Vergleich */
 .compare { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; font-size: 15px; }
 .compare th, .compare td { padding: 14px 18px; text-align: left; border-bottom: 1px solid var(--line); }
@@ -217,7 +245,7 @@ details p { margin: 0 0 18px; color: var(--sub); font-size: 15px; }
 
 /* Abschluss */
 .final { position: relative; isolation: isolate; margin-top: 120px; padding: 96px 28px; text-align: center; border-radius: 28px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
-.final::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(600px 320px at 50% 0%, rgba(79,142,255,.35), transparent 70%), radial-gradient(800px 400px at 50% 120%, rgba(79,142,255,.18), transparent 70%), #04060a; }
+.final::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(600px 320px at 50% 0%, rgba(79,142,255,.35), transparent 70%), radial-gradient(800px 400px at 50% 120%, rgba(79,142,255,.18), transparent 70%), var(--final); }
 .final::after { content: ""; position: absolute; inset: 0; z-index: -1; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 48px 48px; opacity: .35; -webkit-mask-image: radial-gradient(ellipse at center, #000, transparent 70%); mask-image: radial-gradient(ellipse at center, #000, transparent 70%); }
 .final img { width: 72px; height: 72px; filter: drop-shadow(0 10px 30px rgba(79,142,255,.5)); }
 .final h2 { font-size: clamp(32px, 4.6vw, 56px); line-height: 1.06; margin: 18px 0 16px; }
@@ -238,7 +266,7 @@ footer a:hover { color: var(--text); }
 /* Großansicht */
 .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.92); display: none; align-items: center; justify-content: center; padding: 56px 16px 24px; z-index: 50; }
 .lightbox.on { display: flex; }
-.lightbox img { max-width: 100%; max-height: 100%; border-radius: 12px; box-shadow: 0 0 0 1px var(--line-2), 0 20px 80px rgba(0,0,0,.6); }
+.lightbox img { max-width: 100%; max-height: 100%; border-radius: 12px; box-shadow: 0 0 0 1px rgba(255,255,255,.16), 0 20px 80px rgba(0,0,0,.6); }
 .lightbox button { position: absolute; border: 0; background: rgba(255,255,255,.1); color: #fff; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
 .lightbox button:hover { background: rgba(255,255,255,.2); }
 .lightbox button svg.i { width: 22px; height: 22px; }
@@ -260,7 +288,7 @@ footer a:hover { color: var(--text); }
 /* ── schmalere Bildschirme ── */
 @media (max-width: 1060px) {
   .menu-btn { display: inline-flex; }
-  nav.links { position: absolute; top: 64px; left: 0; right: 0; flex-direction: column; gap: 2px; padding: 10px 16px 16px; background: rgba(0,0,0,.96); border-bottom: 1px solid var(--line); display: none; }
+  nav.links { position: absolute; top: 64px; left: 0; right: 0; flex-direction: column; gap: 2px; padding: 10px 16px 16px; background: var(--menu); border-bottom: 1px solid var(--line); display: none; }
   nav.links.open { display: flex; }
   nav.links a { font-size: 16px; padding: 12px 14px; border-radius: 12px; }
 }
@@ -270,7 +298,7 @@ footer a:hover { color: var(--text); }
   .stats { grid-template-columns: 1fr 1fr; }
   .stat:nth-child(3) { border-left: 0; }
   .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
-  .grid3 { grid-template-columns: 1fr 1fr; }
+  .grid3, .skill-grid { grid-template-columns: 1fr 1fr; }
   .faq { grid-template-columns: 1fr; }
   .tabs { justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; margin: 0 -28px 24px; padding: 0 28px 4px; scrollbar-width: none; }
   .tabs::-webkit-scrollbar { display: none; }
@@ -294,7 +322,7 @@ footer a:hover { color: var(--text); }
   section { padding-top: 88px; }
   .head { margin-bottom: 30px; }
   .head p { font-size: 16.5px; }
-  .grid3 { grid-template-columns: 1fr; }
+  .grid3, .skill-grid { grid-template-columns: 1fr; }
   .search-demo { padding: 12px; }
   .sbox { font-size: 14px; padding: 12px; }
   .sbox .scope { display: none; }
@@ -348,6 +376,8 @@ footer a:hover { color: var(--text); }
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></symbol>
   <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8 12.5 3 3 5-6"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
   <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
@@ -362,11 +392,13 @@ footer a:hover { color: var(--text); }
       <a href="#features"><span lang="en">Features</span><span lang="de">Funktionen</span></a>
       <a href="#quicklook"><span lang="en">Quick Look</span><span lang="de">Schnellansicht</span></a>
       <a href="#ai"><span lang="en">AI</span><span lang="de">KI</span></a>
+      <a href="#skills">Skills</a>
       <a href="#more"><span lang="en">More</span><span lang="de">Mehr</span></a>
       <a href="#faq"><span lang="en">FAQ</span><span lang="de">Fragen</span></a>
     </nav>
     <div class="right">
       <button class="pill-btn" id="lang" type="button" title="Sprache / Language"><svg class="i"><use href="#i-globe"/></svg><span lang="en">Deutsch</span><span lang="de">English</span></button>
+      <button class="pill-btn theme-btn" id="theme" type="button" aria-label="Light / dark" title="Hell / Dunkel"><svg class="i sun"><use href="#i-sun"/></svg><svg class="i moon"><use href="#i-moon"/></svg></button>
       <a class="btn small dl-top" href="#download"><svg class="i"><use href="#i-download"/></svg><span lang="en">Download</span><span lang="de">Herunterladen</span></a>
       <button class="pill-btn menu-btn" id="menu" type="button" aria-label="Menu" aria-expanded="false" aria-controls="nav"><svg class="i"><use href="#i-menu"/></svg></button>
     </div>
@@ -377,7 +409,7 @@ footer a:hover { color: var(--text); }
   <div class="hero">
     <div class="wrap grid2">
       <div>
-        <span class="badge"><b><span lang="en">New</span><span lang="de">Neu</span></b><span lang="en">Version 0.9.4 · free for Windows</span><span lang="de">Version 0.9.4 · kostenlos für Windows</span></span>
+        <span class="badge"><b><span lang="en">New</span><span lang="de">Neu</span></b><span lang="en">Version 0.9.5 · free for Windows</span><span lang="de">Version 0.9.5 · kostenlos für Windows</span></span>
         <h1 class="display" lang="en">The file explorer<br><span class="blue">built for speed.</span></h1>
         <h1 class="display" lang="de">Der Datei-Explorer,<br><span class="blue">der einfach mehr kann.</span></h1>
         <p class="lead" lang="en">Find any file on any drive as you type. Open almost every file with the space bar. Rename <code>.heic</code> to <code>.jpg</code> and it converts. Plus local AI, terminal and Git – in one fast window.</p>
@@ -399,7 +431,7 @@ footer a:hover { color: var(--text); }
     <div class="stats reveal">
       <div class="stat"><b class="display">100+</b><span lang="en">formats in Quick Look</span><span lang="de">Formate in der Schnellansicht</span></div>
       <div class="stat"><b class="display">~200</b><span lang="en">languages with syntax colours</span><span lang="de">Sprachen mit Syntaxfarben</span></div>
-      <div class="stat"><b class="display">50+</b><span lang="en">AI skills behind a slash</span><span lang="de">KI-Skills per Schrägstrich</span></div>
+      <div class="stat"><b class="display">53</b><span lang="en">AI skills behind a slash</span><span lang="de">KI-Skills per Schrägstrich</span></div>
       <div class="stat"><b class="display">0 €</b><span lang="en">free, no account</span><span lang="de">kostenlos, ohne Konto</span></div>
     </div>
   </div>
@@ -570,11 +602,11 @@ footer a:hover { color: var(--text); }
       <div class="search-cols reveal" style="margin-bottom:16px">
         <figure class="shot framed"><img src="img/bildki.webp" alt="Image mode with style presets" width="1440" height="900" loading="lazy"></figure>
         <div class="skills" aria-label="Example shortcuts">
-          <div class="skill"><code>/aufräumen</code><span><span lang="en">Tidy a folder: subfolders by type, date or project</span><span lang="de">Ordner sortieren: Unterordner nach Art, Datum oder Projekt</span></span></div>
-          <div class="skill"><code>/duplikate</code><span><span lang="en">Find duplicate files</span><span lang="de">Doppelte Dateien finden</span></span></div>
+          <div class="skill"><code lang="en">/tidy</code><code lang="de">/aufräumen</code><span><span lang="en">Tidy a folder: subfolders by type, date or project</span><span lang="de">Ordner sortieren: Unterordner nach Art, Datum oder Projekt</span></span></div>
+          <div class="skill"><code lang="en">/duplicates</code><code lang="de">/duplikate</code><span><span lang="en">Find duplicate files</span><span lang="de">Doppelte Dateien finden</span></span></div>
           <div class="skill"><code>/commit</code><span><span lang="en">Commit message from your changes</span><span lang="de">Commit-Nachricht aus den Änderungen</span></span></div>
           <div class="skill"><code>/review</code><span><span lang="en">Code review: bugs, risks, improvements</span><span lang="de">Code-Review: Fehler, Risiken, Verbesserungen</span></span></div>
-          <div class="skill"><code>/korrigieren</code><span><span lang="en">Fix spelling and grammar</span><span lang="de">Rechtschreibung und Grammatik verbessern</span></span></div>
+          <div class="skill"><code lang="en">/proofread</code><code lang="de">/korrigieren</code><span><span lang="en">Fix spelling and grammar</span><span lang="de">Rechtschreibung und Grammatik verbessern</span></span></div>
           <div class="skill"><code>/csv</code><span><span lang="en">Analyse CSV or Excel</span><span lang="de">CSV oder Excel auswerten</span></span></div>
         </div>
       </div>
@@ -583,6 +615,90 @@ footer a:hover { color: var(--text); }
         <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-cpu"/></svg></span><span lang="en">Local models</span><span lang="de">Lokale Modelle</span></h4><p lang="en">Download and run text and image models (SD-Turbo, FLUX …) that fit your graphics card and RAM.</p><p lang="de">Text- und Bildmodelle (SD-Turbo, FLUX …) laden und ausführen, passend zu Grafikkarte und RAM.</p></div>
         <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-mic"/></svg></span><span lang="en">Voice input</span><span lang="de">Spracheingabe</span></h4><p lang="en">Dictate with Whisper, locally. No audio leaves your PC.</p><p lang="de">Diktieren mit Whisper, lokal. Kein Ton verlässt den PC.</p></div>
       </div>
+    </div>
+  </section>
+
+
+  <!-- ── Skills ── -->
+  <section id="skills">
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="kicker">Skills</span>
+        <h2 class="display" lang="en">Type a slash.<br><span class="blue">Get a pro prompt.</span></h2>
+        <h2 class="display" lang="de">Schrägstrich tippen.<br><span class="blue">Profi-Prompt bekommen.</span></h2>
+        <p lang="en">53 built-in skills for files, code, writing, learning and data – each one a carefully written prompt. Every skill has an English name; type it and the AI answers in English.</p>
+        <p lang="de">53 eingebaute Skills für Dateien, Code, Schreiben, Lernen und Daten – jeder ein ausgefeilter Prompt. Jeder Skill hat auch einen englischen Namen; damit antwortet die KI auf Englisch.</p>
+      </div>
+      <div class="skill-grid reveal">
+        <div class="sgroup">
+          <h4><span lang="en">Files</span><span lang="de">Dateien</span></h4>
+          <ul>
+            <li><code lang="en">/tidy</code><code lang="de">/aufräumen</code><span><span lang="en">Sort a folder into subfolders</span><span lang="de">Ordner in Unterordner sortieren</span></span></li>
+            <li><code lang="en">/rename</code><code lang="de">/umbenennen</code><span><span lang="en">Consistent, meaningful file names</span><span lang="de">Einheitliche, sprechende Dateinamen</span></span></li>
+            <li><code lang="en">/duplicates</code><code lang="de">/duplikate</code><span><span lang="en">Find duplicate files</span><span lang="de">Doppelte Dateien finden</span></span></li>
+            <li><code lang="en">/largest</code><code lang="de">/groß</code><span><span lang="en">Biggest files and space hogs</span><span lang="de">Größte Dateien und Platzfresser</span></span></li>
+            <li><code lang="en">/sort-by-date</code><code lang="de">/sortieren</code><span><span lang="en">Photos and downloads into date folders</span><span lang="de">Fotos und Downloads nach Datum</span></span></li>
+            <li><code lang="en">/find</code><code lang="de">/finde</code><span><span lang="en">Find a file by its content</span><span lang="de">Datei nach Inhalt finden</span></span></li>
+          </ul>
+        </div>
+        <div class="sgroup">
+          <h4>Code</h4>
+          <ul>
+            <li><code lang="en">/explain</code><code lang="de">/erklären</code><span><span lang="en">Explain code step by step</span><span lang="de">Code Schritt für Schritt erklären</span></span></li>
+            <li><code>/commit</code><span><span lang="en">Commit message from your changes</span><span lang="de">Commit-Nachricht aus den Änderungen</span></span></li>
+            <li><code>/review</code><span><span lang="en">Bugs, risks, improvements</span><span lang="de">Fehler, Risiken, Verbesserungen</span></span></li>
+            <li><code>/fix</code><span><span lang="en">Find and fix a bug</span><span lang="de">Fehler finden und beheben</span></span></li>
+            <li><code>/tests</code><span><span lang="en">Write tests</span><span lang="de">Tests schreiben</span></span></li>
+            <li><code lang="en">/security</code><code lang="de">/sicherheit</code><span><span lang="en">Check for security holes</span><span lang="de">Sicherheitslücken prüfen</span></span></li>
+          </ul>
+        </div>
+        <div class="sgroup">
+          <h4><span lang="en">Writing</span><span lang="de">Schreiben</span></h4>
+          <ul>
+            <li><code lang="en">/proofread</code><code lang="de">/korrigieren</code><span><span lang="en">Fix spelling and grammar</span><span lang="de">Rechtschreibung und Grammatik</span></span></li>
+            <li><code lang="en">/shorter</code><code lang="de">/kürzer</code><span><span lang="en">Shorten, keep the core</span><span lang="de">Kürzen, Kern behalten</span></span></li>
+            <li><code lang="en">/translate</code><code lang="de">/übersetzen</code><span><span lang="en">Translate a text</span><span lang="de">Text übersetzen</span></span></li>
+            <li><code>/email</code><span><span lang="en">Draft an email</span><span lang="de">E-Mail formulieren</span></span></li>
+            <li><code lang="en">/reply</code><code lang="de">/antwort</code><span><span lang="en">Answer a message</span><span lang="de">Auf eine Nachricht antworten</span></span></li>
+            <li><code lang="en">/cover-letter</code><code lang="de">/bewerbung</code><span><span lang="en">Job application letter</span><span lang="de">Anschreiben für eine Bewerbung</span></span></li>
+          </ul>
+        </div>
+        <div class="sgroup">
+          <h4><span lang="en">Learning</span><span lang="de">Lernen</span></h4>
+          <ul>
+            <li><code lang="en">/eli5</code><code lang="de">/einfach</code><span><span lang="en">Explained like you are five</span><span lang="de">Wie für ein Kind erklärt</span></span></li>
+            <li><code>/quiz</code><span><span lang="en">Quiz questions on a topic</span><span lang="de">Quizfragen zum Thema</span></span></li>
+            <li><code lang="en">/study-plan</code><code lang="de">/lernplan</code><span><span lang="en">Make a study plan</span><span lang="de">Lernplan erstellen</span></span></li>
+            <li><code lang="en">/pros-cons</code><code lang="de">/pro-contra</code><span><span lang="en">Weigh pros and cons</span><span lang="de">Vor- und Nachteile abwägen</span></span></li>
+            <li><code lang="en">/ideas</code><code lang="de">/ideen</code><span><span lang="en">Brainstorm ideas</span><span lang="de">Ideen sammeln</span></span></li>
+            <li><code lang="en">/fact-check</code><code lang="de">/faktencheck</code><span><span lang="en">Check a claim</span><span lang="de">Aussage prüfen</span></span></li>
+          </ul>
+        </div>
+        <div class="sgroup">
+          <h4><span lang="en">Data</span><span lang="de">Daten</span></h4>
+          <ul>
+            <li><code>/csv</code><span><span lang="en">Analyse CSV or Excel</span><span lang="de">CSV oder Excel auswerten</span></span></li>
+            <li><code lang="en">/table</code><code lang="de">/tabelle</code><span><span lang="en">Turn text into a table</span><span lang="de">Text als Tabelle</span></span></li>
+            <li><code>/json</code><span><span lang="en">Check and explain JSON</span><span lang="de">JSON prüfen und erklären</span></span></li>
+            <li><code lang="en">/calculate</code><code lang="de">/rechnen</code><span><span lang="en">Calculate step by step</span><span lang="de">Schritt für Schritt rechnen</span></span></li>
+            <li><code>/budget</code><span><span lang="en">List up costs</span><span lang="de">Kosten aufstellen</span></span></li>
+            <li><code>/sql</code><span><span lang="en">Write an SQL query</span><span lang="de">SQL-Abfrage schreiben</span></span></li>
+          </ul>
+        </div>
+        <div class="sgroup">
+          <h4><span lang="en">Images &amp; more</span><span lang="de">Bilder &amp; mehr</span></h4>
+          <ul>
+            <li><code lang="en">/image-prompt</code><code lang="de">/bild</code><span><span lang="en">Prompt for the image AI</span><span lang="de">Prompt für die Bild-KI</span></span></li>
+            <li><code>/alt-text</code><span><span lang="en">Image description for accessibility</span><span lang="de">Bildbeschreibung für Barrierefreiheit</span></span></li>
+            <li><code lang="en">/summarize</code><code lang="de">/zusammenfassen</code><span><span lang="en">Summarise the selected files</span><span lang="de">Markierte Dateien zusammenfassen</span></span></li>
+            <li><code lang="en">/overview</code><code lang="de">/bericht</code><span><span lang="en">Overview of a folder</span><span lang="de">Überblick über den Ordner</span></span></li>
+            <li><code lang="en">/docs</code><code lang="de">/doku</code><span><span lang="en">Write documentation</span><span lang="de">Dokumentation schreiben</span></span></li>
+            <li><code>/readme</code><span><span lang="en">README for a project</span><span lang="de">README für ein Projekt</span></span></li>
+          </ul>
+        </div>
+      </div>
+      <p class="skill-note reveal" lang="en">Add your own skills in a small JSON file – name, description, prompt.</p>
+      <p class="skill-note reveal" lang="de">Eigene Skills legst du in einer kleinen JSON-Datei an – Name, Beschreibung, Prompt.</p>
     </div>
   </section>
 
@@ -677,7 +793,7 @@ footer a:hover { color: var(--text); }
           <a class="btn big" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe"><svg class="i"><use href="#i-download"/></svg><span lang="en">Installer for Windows</span><span lang="de">Installer für Windows</span></a>
           <a class="btn ghost big" href="https://github.com/xJetouss/Foldex/raw/main/dist/foldex.exe">Portable EXE</a>
         </div>
-        <p class="req">Version 0.9.4 · Windows, 64-bit · <a href="https://github.com/xJetouss/Foldex/releases"><span lang="en">All versions</span><span lang="de">Alle Versionen</span></a></p>
+        <p class="req">Version 0.9.5 · Windows, 64-bit · <a href="https://github.com/xJetouss/Foldex/releases"><span lang="en">All versions</span><span lang="de">Alle Versionen</span></a></p>
       </div>
 
       <div class="contact reveal">
@@ -693,7 +809,7 @@ footer a:hover { color: var(--text); }
 
 <footer>
   <div class="wrap">
-    <span>Foldex 0.9.4 · <a href="mailto:jetouss@tssnt.dev">jetouss@tssnt.dev</a> · <span lang="en">Screenshots show a sample folder.</span><span lang="de">Bildschirmfotos zeigen einen Beispielordner.</span></span>
+    <span>Foldex 0.9.5 · <a href="mailto:jetouss@tssnt.dev">jetouss@tssnt.dev</a> · <span lang="en">Screenshots show a sample folder.</span><span lang="de">Bildschirmfotos zeigen einen Beispielordner.</span></span>
     <nav>
       <a href="https://github.com/xJetouss/Foldex">GitHub</a>
       <a href="https://github.com/xJetouss/Foldex/releases"><span lang="en">Versions</span><span lang="de">Versionen</span></a>
@@ -732,6 +848,20 @@ footer a:hover { color: var(--text); }
     applyLang();
   });
 
+  // Hell / Dunkel – Bildschirmfotos gibt es in beiden Varianten (name.webp / name-light.webp)
+  const imgFor = src => {
+    const base = src.replace(/-light(\.webp)$/, '$1');
+    return root.dataset.theme === 'light' ? base.replace(/\.webp$/, '-light.webp') : base;
+  };
+  function applyTheme() {
+    $$('img').forEach(i => { if (/\/img\/[^/]+\.webp$/.test(i.src)) { const n = imgFor(i.getAttribute('src')); if (n !== i.getAttribute('src')) i.setAttribute('src', n); } });
+  }
+  $('#theme').addEventListener('click', () => {
+    if (root.dataset.theme === 'light') delete root.dataset.theme; else root.dataset.theme = 'light';
+    try { localStorage.setItem('foldex-theme', root.dataset.theme || 'dark'); } catch (e) {}
+    applyTheme();
+  });
+
   // Menü auf schmalen Bildschirmen
   const nav = $('#nav'), menu = $('#menu');
   const setMenu = open => { nav.classList.toggle('open', open); menu.setAttribute('aria-expanded', open); };
@@ -768,8 +898,9 @@ footer a:hover { color: var(--text); }
       vtabs.forEach(o => o.setAttribute('aria-selected', o === t));
       vimg.style.opacity = .35;
       const pre = new Image();
-      pre.onload = pre.onerror = () => { vimg.src = t.dataset.img; vimg.alt = t.dataset.alt; vimg.style.opacity = 1; };
-      pre.src = t.dataset.img;
+      const src = imgFor(t.dataset.img);
+      pre.onload = pre.onerror = () => { vimg.setAttribute('src', src); vimg.alt = t.dataset.alt; vimg.style.opacity = 1; };
+      pre.src = src;
       syncCap();
     });
     t.addEventListener('keydown', e => {
@@ -891,6 +1022,7 @@ footer a:hover { color: var(--text); }
   const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' });
   $$('.reveal').forEach(el => io.observe(el));
 
+  applyTheme();
   applyLang();
 </script>
 </body>

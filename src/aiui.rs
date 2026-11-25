@@ -1913,7 +1913,8 @@ impl ChatView {
                             let nw = g.size().x;
                             ui.painter().galley(pos2(r.left() + 10.0, r.center().y - g.size().y / 2.0), g, th.accent);
                             ui::paint_text(ui, r.left() + 24.0 + nw.max(110.0), r.center().y, &s.desc, 12.5, th.sub, r.width() - nw.max(110.0) - 110.0, false);
-                            ui.painter().text(pos2(r.right() - 10.0, r.center().y), egui::Align2::RIGHT_CENTER, &s.group, egui::FontId::proportional(11.0), th.sub);
+                            let tag = match crate::skills::english(&s.name) { Some(e) => format!("/{e} · {}", s.group), None => s.group.clone() };
+                            ui.painter().text(pos2(r.right() - 10.0, r.center().y), egui::Align2::RIGHT_CENTER, tag, egui::FontId::proportional(11.0), th.sub);
                             if resp.clicked() {
                                 take_skill = Some(s.name.clone());
                             }
