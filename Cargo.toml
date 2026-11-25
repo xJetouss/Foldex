@@ -159,6 +159,10 @@ windows-sys = { version = "0.59", features = [
     "Win32_Storage_Xps",
     # Drucker auflisten, Ausrichtung/Farbe einstellen (Foldex-Druckfenster)
     "Win32_Graphics_Printing",
+    # LocalSend: alle echten Netzwerkkarten (WLAN/LAN) finden, nicht nur die Standardroute (VPN, VirtualBox …)
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_Networking_WinSock",
 ] }
 
 [profile.release]

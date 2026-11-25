@@ -68,7 +68,7 @@ echo.
 echo Fertig! Alles liegt im Ordner dist:
 echo   dist\foldex.exe              die normale EXE: startet direkt, ohne Installation
 echo   dist\Foldex-Installer.exe    Windows-Installer: Assistent mit Installationsort, Verknuepfungen,
-echo                                Explorer-Kontextmenue und KI-Komponenten zum Auswaehlen
+echo                                und KI-Komponenten zum Auswaehlen
 echo                                (still: /silent [/dir=...] [/ai=id,id])
 echo   dist\foldex-%VER%.tar.gz     Quellcode fuer Linux: entpacken, dann "sh build.sh"
 pause

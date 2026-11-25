@@ -11,7 +11,7 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream, UdpSocket},
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering::Relaxed},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::Relaxed},
         Arc, Mutex,
     },
     time::Duration,
@@ -198,11 +198,109 @@ fn local_ip() -> Option<Ipv4Addr> {
     }
 }
 
+/// IPv4-Adressen der echten Netzwerkkarten (WLAN/LAN mit Gateway, privates Netz) – die der Standardroute zuerst.
+/// VPN-Tunnel, VirtualBox-, Hyper-V-, WSL- und VMware-Adapter zählen nicht: über sie ist kein Handy erreichbar,
+/// und wenn einer davon die Standardroute hatte, fand die Suche früher gar nichts.
+pub fn lan_ips() -> Vec<Ipv4Addr> {
+    let mut v = adapters();
+    if let Some(d) = local_ip() {
+        match v.iter().position(|a| *a == d) {
+            Some(i) => {
+                let a = v.remove(i);
+                v.insert(0, a);
+            }
+            // Standardroute zeigt auf ein Netz ohne passende Karte (z. B. VPN): nur nehmen, wenn sonst nichts da ist
+            None if v.is_empty() && is_private(d) => v.push(d),
+            None => {}
+        }
+    }
+    v.dedup();
+    v
+}
+
+fn is_private(a: Ipv4Addr) -> bool {
+    a.is_private() && !a.is_link_local() && !a.is_loopback()
+}
+
+#[cfg(windows)]
+fn adapters() -> Vec<Ipv4Addr> {
+    use windows_sys::Win32::{
+        NetworkManagement::IpHelper::{GetAdaptersAddresses, GAA_FLAG_INCLUDE_GATEWAYS, GAA_FLAG_SKIP_ANYCAST, GAA_FLAG_SKIP_DNS_SERVER, GAA_FLAG_SKIP_MULTICAST, IP_ADAPTER_ADDRESSES_LH},
+        Networking::WinSock::{AF_INET, SOCKADDR_IN},
+    };
+    const VIRTUAL: [&str; 9] = ["virtual", "vethernet", "hyper-v", "vmware", "wsl", "tap-", "wireguard", "vpn", "loopback"];
+    let mut out = Vec::new();
+    let mut size: u32 = 32 * 1024;
+    for _ in 0..3 {
+        let mut buf = vec![0u64; (size as usize).div_ceil(8)];
+        let p = buf.as_mut_ptr() as *mut IP_ADAPTER_ADDRESSES_LH;
+        let flags = GAA_FLAG_INCLUDE_GATEWAYS | GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
+        let rc = unsafe { GetAdaptersAddresses(AF_INET as u32, flags, std::ptr::null(), p, &mut size) };
+        if rc == 111 {
+            continue; // ERROR_BUFFER_OVERFLOW: größerer Puffer
+        }
+        if rc != 0 {
+            return out;
+        }
+        let mut a = p as *const IP_ADAPTER_ADDRESSES_LH;
+        while !a.is_null() {
+            let ad = unsafe { &*a };
+            a = ad.Next;
+            // nur aktive LAN- (6) und WLAN-Karten (71) mit Gateway
+            if ad.OperStatus != 1 || !(ad.IfType == 6 || ad.IfType == 71) || ad.FirstGatewayAddress.is_null() {
+                continue;
+            }
+            let desc = unsafe { wide(ad.Description) }.to_lowercase() + " " + &unsafe { wide(ad.FriendlyName) }.to_lowercase();
+            if VIRTUAL.iter().any(|w| desc.contains(w)) {
+                continue;
+            }
+            let mut u = ad.FirstUnicastAddress;
+            while !u.is_null() {
+                let ua = unsafe { &*u };
+                u = ua.Next;
+                let sa = ua.Address.lpSockaddr;
+                if sa.is_null() || unsafe { (*sa).sa_family } != AF_INET {
+                    continue;
+                }
+                let sin = unsafe { &*(sa as *const SOCKADDR_IN) };
+                let ip = Ipv4Addr::from(u32::from_be(unsafe { sin.sin_addr.S_un.S_addr }));
+                if is_private(ip) {
+                    out.push(ip);
+                }
+            }
+        }
+        return out;
+    }
+    out
+}
+
+#[cfg(windows)]
+unsafe fn wide(p: *const u16) -> String {
+    if p.is_null() {
+        return String::new();
+    }
+    let mut n = 0;
+    while *p.add(n) != 0 {
+        n += 1;
+    }
+    String::from_utf16_lossy(std::slice::from_raw_parts(p, n))
+}
+
+#[cfg(not(windows))]
+fn adapters() -> Vec<Ipv4Addr> {
+    Vec::new()
+}
+
 /// Laufende Gerätesuche (endet, wenn sie verworfen wird).
 pub struct Discovery {
     pub devices: Arc<Mutex<Vec<Device>>>,
     pub me: Me,
     pub searching: Arc<AtomicBool>,
+    /// abgefragte bzw. abzufragende Adressen (Fortschritt der Suche)
+    pub scanned: Arc<AtomicUsize>,
+    pub total: usize,
+    /// durchsuchte Netze, z. B. „192.168.1.x“
+    pub nets: Vec<String>,
     stop: Arc<AtomicBool>,
 }
 
@@ -231,9 +329,24 @@ pub fn discover(me: Me, repaint: Arc<dyn Fn() + Send + Sync>) -> Discovery {
     let devices = Arc::new(Mutex::new(Vec::new()));
     let stop = Arc::new(AtomicBool::new(false));
     let searching = Arc::new(AtomicBool::new(true));
+    let scanned = Arc::new(AtomicUsize::new(0));
+    // höchstens drei Netze (z. B. WLAN und LAN gleichzeitig)
+    let ips: Vec<Ipv4Addr> = lan_ips().into_iter().take(3).collect();
+    let mut hosts: Vec<Ipv4Addr> = Vec::new();
+    let mut nets = Vec::new();
+    for ip in &ips {
+        let o = ip.octets();
+        let net = format!("{}.{}.{}.x", o[0], o[1], o[2]);
+        if nets.contains(&net) {
+            continue;
+        }
+        nets.push(net);
+        hosts.extend((1..=254u8).map(|x| Ipv4Addr::new(o[0], o[1], o[2], x)).filter(|a| !ips.contains(a)));
+    }
+    let total = hosts.len();
     // Multicast: ankündigen, Ankündigungen und Antworten hören
     {
-        let (d, m, s, r) = (devices.clone(), me.clone(), stop.clone(), repaint.clone());
+        let (d, m, s, r, ifaces) = (devices.clone(), me.clone(), stop.clone(), repaint.clone(), ips.clone());
         std::thread::spawn(move || {
             use socket2::{Domain, Protocol, Socket, Type};
             let sock = (|| -> std::io::Result<UdpSocket> {
@@ -243,24 +356,37 @@ pub fn discover(me: Me, repaint: Arc<dyn Fn() + Send + Sync>) -> Discovery {
                 if so.bind(&SocketAddr::from((Ipv4Addr::UNSPECIFIED, PORT)).into()).is_err() {
                     so.bind(&SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0)).into())?;
                 }
-                let iface = local_ip().unwrap_or(Ipv4Addr::UNSPECIFIED);
-                let _ = so.join_multicast_v4(&GROUP, &iface);
-                let _ = so.set_multicast_if_v4(&iface);
+                // in jedem Netz der Gruppe beitreten (sonst hört man nur das der Standardroute)
+                if ifaces.is_empty() {
+                    let _ = so.join_multicast_v4(&GROUP, &Ipv4Addr::UNSPECIFIED);
+                }
+                for i in &ifaces {
+                    let _ = so.join_multicast_v4(&GROUP, i);
+                }
                 so.set_multicast_ttl_v4(1)?;
                 so.set_read_timeout(Some(Duration::from_millis(300)))?;
                 Ok(so.into())
             })();
             let Ok(sock) = sock else { return };
+            let so = socket2::SockRef::from(&sock);
             let hello = m.json(Some(true)).to_string();
             let target = SocketAddr::from((GROUP, PORT));
             let mut buf = [0u8; 8192];
-            let start = std::time::Instant::now();
-            let mut sent = 0;
+            // ankündigen: sofort, nach 1 s und dann alle 4 s, solange das Fenster offen ist (Geräte, deren App
+            // erst später geöffnet wird, antworten dann auch) – in jedem Netz einzeln
+            let mut next = std::time::Instant::now();
+            let mut round = 0u32;
             while !s.load(Relaxed) {
-                let due = [0u64, 1000, 3000];
-                if sent < due.len() && start.elapsed().as_millis() as u64 >= due[sent] {
-                    let _ = sock.send_to(hello.as_bytes(), target);
-                    sent += 1;
+                if std::time::Instant::now() >= next {
+                    if ifaces.is_empty() {
+                        let _ = sock.send_to(hello.as_bytes(), target);
+                    }
+                    for i in &ifaces {
+                        let _ = so.set_multicast_if_v4(i);
+                        let _ = sock.send_to(hello.as_bytes(), target);
+                    }
+                    round += 1;
+                    next = std::time::Instant::now() + Duration::from_millis(if round == 1 { 1000 } else { 4000 });
                 }
                 let Ok((n, from)) = sock.recv_from(&mut buf) else { continue };
                 let Some(v) = serde_json::from_slice::<Value>(&buf[..n]).ok() else { continue };
@@ -272,21 +398,21 @@ pub fn discover(me: Me, repaint: Arc<dyn Fn() + Send + Sync>) -> Discovery {
     }
     // Alle Adressen im Netz direkt fragen (findet Geräte auch ohne Multicast-Antwort)
     {
-        let (d, m, s, busy, r) = (devices.clone(), me.clone(), stop.clone(), searching.clone(), repaint.clone());
+        let (d, m, s, busy, r, done) = (devices.clone(), me.clone(), stop.clone(), searching.clone(), repaint.clone(), scanned.clone());
         std::thread::spawn(move || {
-            if let Some(ip) = local_ip() {
-                let o = ip.octets();
-                let hosts: Vec<Ipv4Addr> = (1..=254u8).map(|x| Ipv4Addr::new(o[0], o[1], o[2], x)).filter(|a| *a != ip).collect();
-                for chunk in hosts.chunks(48) {
+            {
+                for chunk in hosts.chunks(64) {
                     if s.load(Relaxed) {
                         break;
                     }
                     let hs: Vec<_> = chunk
                         .iter()
                         .map(|a| {
-                            let (a, d, m, r) = (*a, d.clone(), m.clone(), r.clone());
+                            let (a, d, m, r, done) = (*a, d.clone(), m.clone(), r.clone(), done.clone());
                             std::thread::spawn(move || {
-                                if TcpStream::connect_timeout(&SocketAddr::from((a, PORT)), Duration::from_millis(300)).is_err() {
+                                let open = TcpStream::connect_timeout(&SocketAddr::from((a, PORT)), Duration::from_millis(450)).is_ok();
+                                done.fetch_add(1, Relaxed);
+                                if !open {
                                     return;
                                 }
                                 for https in [true, false] {
@@ -306,6 +432,7 @@ pub fn discover(me: Me, repaint: Arc<dyn Fn() + Send + Sync>) -> Discovery {
                     for h in hs {
                         let _ = h.join();
                     }
+                    r();
                 }
             }
             // Multicast-Antworten kommen meist in den ersten Sekunden
@@ -314,7 +441,7 @@ pub fn discover(me: Me, repaint: Arc<dyn Fn() + Send + Sync>) -> Discovery {
             r();
         });
     }
-    Discovery { devices, me, searching, stop }
+    Discovery { devices, me, searching, scanned, total, nets, stop }
 }
 
 /// Lesestrom mit Fortschritt und Abbruch.
@@ -426,6 +553,14 @@ mod tests {
             .with_custom_certificate_verifier(Arc::new(Pinned { fingerprint: String::new(), provider }))
             .with_client_auth_cert(vec![cert], key);
         assert!(cfg.is_ok(), "Client-Zertifikat wird nicht angenommen");
+    }
+
+    /// Netzwerkkarten für die Suche: nur echte LAN/WLAN-Netze (cargo test lan_ips -- --nocapture)
+    #[test]
+    fn lan_ips_are_private() {
+        let v = lan_ips();
+        println!("Netze für LocalSend: {v:?}");
+        assert!(v.iter().all(|a| a.is_private()));
     }
 
     #[test]

@@ -1094,15 +1094,15 @@ impl ShareWin {
     pub fn ui(&mut self, ctx: &egui::Context, th: &Theme) -> bool {
         self.poll(ctx);
         let mut open = true;
-        let frame = egui::Frame::window(&ctx.style()).fill(th.panel).rounding(Rounding::same(10.0)).stroke(Stroke::new(1.0, th.line)).inner_margin(Margin::same(18.0));
+        let frame = egui::Frame::window(&ctx.style()).fill(th.panel).rounding(Rounding::same(12.0)).stroke(Stroke::new(1.0, th.line)).inner_margin(Margin::same(18.0));
         let max_h = (ctx.screen_rect().height() - 60.0).clamp(320.0, 760.0);
-        let busy = self.job.is_some() || self.result.is_some() || self.wa.is_some();
+        let busy = self.job.is_some() || self.result.is_some() || self.wa.is_some() || self.picker.is_some();
         // Esc schließt (außer während etwas läuft)
         if !busy && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             open = false;
         }
         egui::Window::new("Teilen")
-            .open(&mut open)
+            .title_bar(false)
             .frame(frame)
             .collapsible(false)
             .resizable(true)
@@ -1113,6 +1113,16 @@ impl ShareWin {
             .min_width(460.0)
             .max_height(max_h)
             .show(ctx, |ui| {
+                // Kopf wie bei den anderen Foldex-Fenstern: Titel links, Schließen rechts
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new("Teilen").size(17.0).strong());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.add_enabled_ui(!busy, |ui| close_button(ui, th)).inner.clicked() {
+                            open = false;
+                        }
+                    });
+                });
+                ui.add_space(6.0);
                 // während ein Popup offen ist, ist das Fenster gesperrt
                 ui.add_enabled_ui(!busy, |ui| {
                     egui::ScrollArea::vertical().auto_shrink([false, true]).max_height(max_h - 60.0).show(ui, |ui| self.body(ui, th, ctx));
@@ -1387,56 +1397,129 @@ impl ShareWin {
         let Some(p) = &self.picker else { return };
         let devices = p.disc.devices.lock().map(|v| v.clone()).unwrap_or_default();
         let searching = p.disc.searching.load(Relaxed);
+        let (done, total) = (p.disc.scanned.load(Relaxed), p.disc.total);
+        let nets = p.disc.nets.join(", ");
         let me = p.disc.me.clone();
-        let mut open = true;
+        let green = rgb(0x2bb38a);
+        let mut close = false;
         let mut pick: Option<Device> = None;
         let mut rescan = false;
-        egui::Window::new("An Gerät senden")
-            .open(&mut open)
-            .frame(Self::popup_frame(ctx, th, th.accent.gamma_multiply(0.6)))
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            close = true;
+        }
+        egui::Window::new("ls_picker")
+            .title_bar(false)
+            .frame(Self::popup_frame(ctx, th, th.line))
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .fixed_size([400.0, 0.0])
+            .fixed_size([500.0, 0.0])
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
-                ui.label(egui::RichText::new(format!("Sendet als „{}“ (dein LocalSend-Gerät)", me.alias)).size(12.0).color(th.sub));
-                ui.add_space(8.0);
-                for d in &devices {
-                    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 48.0), Sense::click());
-                    ui.painter().rect(r, 8.0, if resp.hovered() { th.hover } else { th.field }, Stroke::new(1.0, th.line));
-                    let ic = Rect::from_center_size(pos2(r.left() + 24.0, r.center().y), vec2(28.0, 28.0));
-                    ui.painter().circle_filled(ic.center(), 14.0, rgb(0x2bb38a));
-                    let letter: String = d.alias.chars().next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
-                    ui.painter().text(ic.center(), egui::Align2::CENTER_CENTER, letter, FontId::proportional(14.0), Color32::WHITE);
-                    ui::paint_text(ui, ic.right() + 12.0, r.center().y - 8.0, &d.alias, 14.0, th.text, r.width() - 60.0, false);
-                    ui::paint_text(ui, ic.right() + 12.0, r.center().y + 10.0, &d.detail(), 11.5, th.sub, r.width() - 60.0, false);
-                    if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
-                        pick = Some(d.clone());
-                    }
+                // Kopf: LocalSend-Zeichen, Titel, als wer gesendet wird, Schließen
+                ui.horizontal(|ui| {
+                    let (r, _) = ui.allocate_exact_size(vec2(40.0, 40.0), Sense::hover());
+                    ui.painter().circle_filled(r.center(), 20.0, green.gamma_multiply(0.18));
+                    ui.painter().circle_stroke(r.center(), 11.0, Stroke::new(2.2, green));
+                    ui.painter().circle_filled(r.center(), 5.0, green);
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 1.0;
+                        ui.label(egui::RichText::new("An ein Gerät senden").size(16.5).strong());
+                        ui.label(egui::RichText::new(format!("über LocalSend · als „{}“", me.alias)).size(12.0).color(th.sub));
+                    });
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                        if close_button(ui, th).clicked() {
+                            close = true;
+                        }
+                    });
+                });
+                ui.add_space(10.0);
+                ui.add(egui::Label::new(egui::RichText::new(names_str(&self.files)).size(12.0).color(th.sub)).truncate());
+                ui.add_space(10.0);
+
+                // Suche: Fortschritt über alle Adressen im Netz
+                if searching {
+                    let frac = if total > 0 { done as f32 / total as f32 } else { 0.0 };
+                    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 4.0), Sense::hover());
+                    ui.painter().rect_filled(r, 2.0, th.field);
+                    ui.painter().rect_filled(Rect::from_min_size(r.min, vec2((r.width() * frac).max(6.0), r.height())), 2.0, green);
                     ui.add_space(4.0);
+                    let txt = if nets.is_empty() { "Suche Geräte …".to_string() } else { format!("Suche Geräte in {nets} …  {done} von {total}") };
+                    ui.label(egui::RichText::new(txt).size(11.5).color(th.sub));
+                    ui.add_space(6.0);
                 }
-                ui.horizontal_wrapped(|ui| {
-                    if searching {
-                        ui.spinner();
-                        ui.label(egui::RichText::new("suche Geräte im Netz …").size(12.0).color(th.sub));
-                    } else {
-                        if devices.is_empty() {
-                            ui.label(egui::RichText::new("Keine Geräte gefunden – LocalSend auf dem anderen Gerät öffnen, gleiches WLAN.").size(12.0).color(th.sub));
+
+                // Geräte als Karten
+                egui::ScrollArea::vertical().max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
+                    for d in &devices {
+                        let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 58.0), Sense::click());
+                        let hov = resp.hovered();
+                        ui.painter().rect(r, 10.0, if hov { th.hover } else { th.field }, Stroke::new(1.0, if hov { green.gamma_multiply(0.7) } else { th.line }));
+                        let ic = Rect::from_center_size(pos2(r.left() + 30.0, r.center().y), vec2(36.0, 36.0));
+                        ui.painter().circle_filled(ic.center(), 18.0, green.gamma_multiply(0.16));
+                        device_icon(ui.painter(), ic.shrink(9.0), &d.kind, green);
+                        let tx = ic.right() + 14.0;
+                        let tw = r.right() - tx - 100.0;
+                        ui::paint_text(ui, tx, r.center().y - 9.0, &d.alias, 14.5, th.text, tw, false);
+                        ui::paint_text(ui, tx, r.center().y + 10.0, &d.detail(), 11.5, th.sub, tw, false);
+                        // „Senden“ rechts – deutlich beim Darüberfahren
+                        let b = Rect::from_center_size(pos2(r.right() - 52.0, r.center().y), vec2(78.0, 28.0));
+                        ui.painter().rect_filled(b, 14.0, if hov { green } else { th.panel });
+                        ui.painter().text(b.center(), egui::Align2::CENTER_CENTER, "Senden", FontId::proportional(12.5), if hov { Color32::WHITE } else { th.sub });
+                        if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                            pick = Some(d.clone());
                         }
-                        if ui.small_button("Neu suchen").clicked() {
-                            rescan = true;
-                        }
+                        ui.add_space(6.0);
                     }
                 });
+                if devices.is_empty() {
+                    {
+                        egui::Frame::none().fill(th.field).rounding(Rounding::same(10.0)).inner_margin(Margin::same(14.0)).show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+                            ui.label(egui::RichText::new(if searching { "Noch kein Gerät gefunden" } else { "Kein Gerät gefunden" }).size(14.0).strong());
+                            ui.add_space(4.0);
+                            for t in [
+                                "LocalSend auf dem anderen Gerät öffnen und im Vordergrund lassen",
+                                "Beide Geräte im selben WLAN – nicht im Gast-WLAN",
+                                "Auf dem Handy in LocalSend „Sichtbar“ bzw. „Schnelles Speichern“ prüfen",
+                                "VPN auf diesem PC kurz ausschalten, falls es lokale Geräte blockiert",
+                            ] {
+                                ui.horizontal(|ui| {
+                                    let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+                                    ui.painter().circle_filled(r.center(), 2.5, green);
+                                    ui.add(egui::Label::new(egui::RichText::new(t).size(12.0).color(th.sub)).wrap());
+                                });
+                            }
+                        });
+                    }
+                }
+
+                ui.add_space(10.0);
+                ui.horizontal(|ui| {
+                    let label = if searching { "Sucht …" } else { "Neu suchen" };
+                    if ui.add_enabled(!searching, egui::Button::new(label).min_size(vec2(110.0, 30.0))).clicked() {
+                        rescan = true;
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.add(egui::Button::new("Abbrechen").min_size(vec2(100.0, 30.0))).clicked() {
+                            close = true;
+                        }
+                        if !devices.is_empty() {
+                            ui.label(egui::RichText::new(format!("{} Gerät(e) gefunden", devices.len())).size(12.0).color(th.sub));
+                        }
+                    });
+                });
             });
+        if searching {
+            ctx.request_repaint_after(Duration::from_millis(150));
+        }
         if rescan {
             self.open_picker(me.clone(), ctx);
         }
         if let Some(d) = pick {
             self.picker = None;
             self.start(Target::Device(d, me), ctx);
-        } else if !open {
+        } else if close {
             self.picker = None;
         }
     }
@@ -1523,6 +1606,37 @@ impl ShareWin {
             Some(t) => self.start(t, ctx),
             None => {}
         }
+    }
+}
+
+/// Runder Schließen-Knopf (×) für Popups ohne Titelleiste.
+fn close_button(ui: &mut egui::Ui, th: &Theme) -> egui::Response {
+    let (r, resp) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
+    if resp.hovered() {
+        ui.painter().circle_filled(r.center(), 14.0, th.hover);
+    }
+    let c = r.center();
+    let st = Stroke::new(1.5, if resp.hovered() { th.text } else { th.sub });
+    ui.painter().line_segment([c + vec2(-4.5, -4.5), c + vec2(4.5, 4.5)], st);
+    ui.painter().line_segment([c + vec2(-4.5, 4.5), c + vec2(4.5, -4.5)], st);
+    resp.on_hover_text("Schließen (Esc)")
+}
+
+/// Symbol je Geräteart: Handy, Browser oder PC.
+fn device_icon(p: &egui::Painter, r: Rect, kind: &str, col: Color32) {
+    let st = Stroke::new(1.6, col);
+    match kind {
+        "mobile" => {
+            let b = Rect::from_center_size(r.center(), vec2(r.width() * 0.62, r.height()));
+            p.rect_stroke(b, 3.0, st);
+            p.line_segment([pos2(b.center().x - 2.5, b.bottom() - 3.0), pos2(b.center().x + 2.5, b.bottom() - 3.0)], st);
+        }
+        "web" => {
+            p.circle_stroke(r.center(), r.width() * 0.5, st);
+            p.line_segment([pos2(r.left(), r.center().y), pos2(r.right(), r.center().y)], st);
+            p.line_segment([pos2(r.center().x, r.top()), pos2(r.center().x, r.bottom())], st);
+        }
+        _ => ui::draw(p, r, Ic::Pc, col),
     }
 }
 

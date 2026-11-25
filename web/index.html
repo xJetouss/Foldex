@@ -3,322 +3,312 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Foldex – the file explorer that simply does more</title>
-<meta name="description" content="Foldex: a fast, memory-friendly file explorer for Windows – tabs, Quick Look for almost any file, convert by renaming, local AI, cloud drives, terminal and Git.">
-<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
-<meta property="og:title" content="Foldex – file explorer">
-<meta property="og:description" content="A fast file explorer with Quick Look for almost any file, convert by renaming, local AI, cloud drives, terminal and Git.">
+<title>Foldex – the file explorer built for speed</title>
+<meta name="description" content="Foldex: a fast file explorer for Windows – instant search across all drives, content search with OCR, Quick Look for almost any file, convert by renaming, local AI, terminal and Git.">
+<meta name="theme-color" content="#000000">
+<meta property="og:title" content="Foldex – the file explorer built for speed">
+<meta property="og:description" content="Instant search, Quick Look for almost any file, convert by renaming, local AI, terminal and Git – in one window.">
 <meta property="og:image" content="img/explorer.webp">
 <link rel="icon" type="image/png" href="favicon.png">
 <script>
-  // gespeicherte Sprache und Farbschema vor dem ersten Zeichnen setzen (kein Aufblitzen)
-  try {
-    const l = localStorage.getItem('foldex-lang'); if (l === 'de') document.documentElement.lang = 'de';
-    const t = localStorage.getItem('foldex-theme'); if (t) document.documentElement.dataset.theme = t;
-  } catch (e) {}
+  // gespeicherte Sprache vor dem ersten Zeichnen setzen (kein Aufblitzen)
+  try { if (localStorage.getItem('foldex-lang') === 'de') document.documentElement.lang = 'de'; } catch (e) {}
 </script>
 <style>
 :root {
-  --bg: #f6f7f9; --bg-2: #eef1f5; --panel: #ffffff; --text: #16181d; --sub: #5b6270; --line: #e3e6eb;
-  --accent: #1a7cf5; --accent-2: #4fb3ff; --on-accent: #ffffff; --chip: #eef3fb;
-  --glow: rgba(26, 124, 245, .16);
-  --shadow: 0 18px 50px rgba(20, 40, 80, .14);
-  --radius: 14px;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0f1115; --bg-2: #13161c; --panel: #171a20; --text: #eceef2; --sub: #9aa3b2; --line: #262b33;
-    --accent: #4fa8ff; --accent-2: #7cc7ff; --on-accent: #06121f; --chip: #1c2633;
-    --glow: rgba(79, 168, 255, .18);
-    --shadow: 0 18px 60px rgba(0, 0, 0, .5);
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0f1115; --bg-2: #13161c; --panel: #171a20; --text: #eceef2; --sub: #9aa3b2; --line: #262b33;
-  --accent: #4fa8ff; --accent-2: #7cc7ff; --on-accent: #06121f; --chip: #1c2633;
-  --glow: rgba(79, 168, 255, .18);
-  --shadow: 0 18px 60px rgba(0, 0, 0, .5);
+  --bg: #000; --card: rgba(255,255,255,.035); --card-2: rgba(255,255,255,.06);
+  --line: rgba(255,255,255,.09); --line-2: rgba(255,255,255,.16);
+  --text: #f7f7f7; --sub: #9aa0ab; --dim: #6b717c;
+  --blue: #4f8eff; --blue-2: #7fb0ff;
+  --radius: 16px;
   color-scheme: dark;
 }
 /* Sprache: jeder Text steht zweimal da (lang="en" / lang="de"), sichtbar ist nur die gewählte */
 :root[lang="en"] [lang="de"], :root[lang="de"] [lang="en"] { display: none !important; }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 76px; -webkit-text-size-adjust: 100%; }
+html { scroll-behavior: smooth; scroll-padding-top: 80px; -webkit-text-size-adjust: 100%; background: var(--bg); }
 body {
   margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden;
-  font: 16px/1.6 "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  font: 16px/1.6 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Inter", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 img { max-width: 100%; }
-a { color: var(--accent); text-decoration: none; }
+a { color: var(--blue-2); text-decoration: none; }
 a:hover { text-decoration: underline; }
-code { font: .92em Consolas, "Cascadia Code", ui-monospace, monospace; background: var(--chip); padding: 1px 6px; border-radius: 5px; }
-.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+code { font: .9em Consolas, "Cascadia Code", ui-monospace, monospace; background: var(--card-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; color: #dfe6f3; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 28px; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 8px; }
 svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.display { font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif; font-weight: 750; letter-spacing: -.035em; }
+.blue { color: var(--blue); }
+
+/* ── Knöpfe: Pillen mit Leuchten ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; border-radius: 999px;
+  background: var(--blue); color: #fff; font-weight: 600; border: 0; cursor: pointer; white-space: nowrap; font-size: 15px;
+  box-shadow: 0 8px 20px -10px rgba(79,142,255,.75), inset 0 1px 0 rgba(255,255,255,.35);
+  transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
+}
+.btn:hover { text-decoration: none; filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 14px 30px -12px rgba(79,142,255,.9), inset 0 1px 0 rgba(255,255,255,.35); }
+.btn.ghost { background: var(--card-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
+.btn.ghost:hover { background: rgba(255,255,255,.1); }
+.btn.small { padding: 8px 16px; font-size: 14px; }
+.btn.big { padding: 15px 30px; font-size: 16px; }
 
 /* ── Kopf ── */
-header.top {
-  position: sticky; top: 0; z-index: 20; backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px);
-  background: color-mix(in srgb, var(--bg) 80%, transparent); border-bottom: 1px solid var(--line);
-}
-header.top .wrap { display: flex; align-items: center; gap: 10px; height: 60px; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 18px; color: var(--text); margin-right: 6px; }
+header.top { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); background: rgba(0,0,0,.62); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; gap: 10px; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 750; font-size: 18px; color: var(--text); letter-spacing: -.01em; margin-right: 18px; }
 .brand:hover { text-decoration: none; }
-.brand img { width: 30px; height: 30px; }
-.brand .ver { font-size: 12px; font-weight: 600; color: var(--sub); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; }
-nav.links { display: flex; gap: 2px; margin-left: auto; }
-nav.links a { color: var(--sub); font-size: 14.5px; padding: 6px 9px; border-radius: 8px; white-space: nowrap; }
-nav.links a:hover, nav.links a.on { color: var(--text); background: var(--chip); text-decoration: none; }
-.icon-btn {
-  height: 38px; min-width: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 10px; flex: none;
-  border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; padding: 0 9px; font: 600 13.5px/1 inherit;
-}
-.icon-btn:hover { border-color: var(--accent); }
-.menu-btn { display: none; }
-.theme-btn .moon { display: none; }
-:root[data-theme="dark"] .theme-btn .sun { display: none; }
-:root[data-theme="dark"] .theme-btn .moon { display: block; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .theme-btn .sun { display: none; }
-  :root:not([data-theme="light"]) .theme-btn .moon { display: block; }
-}
-.btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 22px; border-radius: 11px;
-  background: var(--accent); color: var(--on-accent); font-weight: 600; border: 0; cursor: pointer; white-space: nowrap;
-  box-shadow: 0 6px 20px var(--glow); transition: transform .15s ease, filter .15s ease;
-}
-.btn:hover { text-decoration: none; filter: brightness(1.08); transform: translateY(-1px); }
-.btn.ghost { background: var(--panel); color: var(--text); border: 1px solid var(--line); box-shadow: none; }
-.btn.small { padding: 8px 14px; font-size: 14px; }
+.brand img { width: 28px; height: 28px; }
+nav.links { display: flex; gap: 4px; }
+nav.links a { color: var(--sub); font-size: 14px; padding: 6px 10px; border-radius: 999px; white-space: nowrap; }
+nav.links a:hover, nav.links a.on { color: var(--text); background: var(--card-2); text-decoration: none; }
+.right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.pill-btn { height: 36px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--card-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); font: 600 13.5px/1 inherit; cursor: pointer; }
+.pill-btn:hover { background: rgba(255,255,255,.1); }
+.menu-btn { display: none; width: 36px; padding: 0; justify-content: center; }
 
 /* ── Hero ── */
-.hero { position: relative; padding: 76px 0 24px; text-align: center; isolation: isolate; }
-.hero::before {
-  content: ""; position: absolute; z-index: -1; left: 50%; top: -120px; width: min(1100px, 140vw); height: 720px; transform: translateX(-50%);
-  background: radial-gradient(closest-side, var(--glow), transparent 70%);
+.hero { position: relative; isolation: isolate; padding: 88px 0 56px; }
+.hero::before { /* Raster, das nach außen ausläuft */
+  content: ""; position: absolute; inset: -64px 0 0; z-index: -2;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 56px 56px; opacity: .55;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 60% 30%, #000 30%, transparent 75%); mask-image: radial-gradient(ellipse 70% 60% at 60% 30%, #000 30%, transparent 75%);
 }
-.pill { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--sub); background: var(--panel); border: 1px solid var(--line); padding: 5px 14px 5px 6px; border-radius: 99px; }
-.pill b { background: var(--accent); color: var(--on-accent); font-size: 12px; padding: 1px 9px; border-radius: 99px; }
-.hero h1 { font-size: clamp(36px, 6.4vw, 64px); line-height: 1.05; margin: 22px 0 16px; letter-spacing: -.025em; }
-.hero h1 .grad { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.hero p.lead { font-size: clamp(17px, 2.2vw, 19.5px); color: var(--sub); max-width: 740px; margin: 0 auto 30px; }
-.cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-.hero .meta { margin-top: 18px; font-size: 13.5px; color: var(--sub); display: flex; gap: 6px 18px; justify-content: center; flex-wrap: wrap; }
-.hero .meta > span::before { content: "✓"; color: var(--accent); font-weight: 700; margin-right: 6px; }
+.hero::after { content: ""; position: absolute; z-index: -1; right: -10%; top: -10%; width: 70%; height: 90%; background: radial-gradient(closest-side, rgba(79,142,255,.22), transparent 70%); }
+.hero .grid2 { display: grid; grid-template-columns: 1fr 1.15fr; gap: 56px; align-items: center; }
+.badge { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--sub); background: var(--card); box-shadow: inset 0 0 0 1px var(--line); padding: 5px 14px 5px 6px; border-radius: 999px; }
+.badge b { background: var(--blue); color: #fff; font-size: 11.5px; padding: 2px 9px; border-radius: 999px; }
+.hero h1 { font-size: clamp(42px, 6vw, 72px); line-height: 1.02; margin: 22px 0 18px; }
+.hero p.lead { font-size: clamp(16.5px, 1.8vw, 19px); color: var(--sub); max-width: 540px; margin: 0 0 30px; }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.hero .sub-links { margin-top: 14px; font-size: 13.5px; color: var(--dim); }
+.hero .sub-links a { color: var(--sub); }
 
-/* Fensterrahmen um Bildschirmfotos */
-.window { margin: 56px auto 0; max-width: 1100px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); overflow: hidden; }
-.window .bar { height: 34px; display: flex; align-items: center; gap: 7px; padding: 0 14px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--sub); }
-.window .bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--line); }
+/* Bildschirmfoto im Fensterrahmen mit Leuchten */
+.window { position: relative; border-radius: 14px; background: #0b0d12; box-shadow: 0 0 0 1px var(--line-2), 0 30px 80px -20px rgba(79,142,255,.35), 0 20px 60px rgba(0,0,0,.6); overflow: hidden; }
+.window .bar { height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 12px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--dim); }
+.window .bar i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.14); }
 .window .bar span { margin-left: 8px; }
-figure.shot { margin: 0; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); background: #111; cursor: zoom-in; }
-.window figure.shot { border: 0; border-radius: 0; box-shadow: none; }
+figure.shot { margin: 0; cursor: zoom-in; }
 figure.shot img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; }
+.framed { border-radius: 14px; overflow: hidden; box-shadow: 0 0 0 1px var(--line-2), 0 30px 70px -30px rgba(79,142,255,.4); }
 
-/* Kennzahlen */
-.facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 48px 0 0; }
-.fact { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; text-align: center; }
-.fact b { display: block; font-size: 24px; letter-spacing: -.01em; }
-.fact span { color: var(--sub); font-size: 14px; }
+/* ── Kennzahlen ── */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.stat { padding: 30px 20px; text-align: center; }
+.stat + .stat { border-left: 1px solid var(--line); }
+.stat b { display: block; font-size: clamp(30px, 3.6vw, 44px); line-height: 1.1; }
+.stat span { color: var(--sub); font-size: 14px; }
 
 /* ── Abschnitte ── */
-section { padding: 96px 0 0; }
-.kicker { display: inline-block; font-size: 12.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
-section h2 { font-size: clamp(27px, 3.6vw, 40px); line-height: 1.15; margin: 0 0 10px; letter-spacing: -.015em; }
-section p.intro { color: var(--sub); margin: 0 0 36px; max-width: 760px; font-size: 17.5px; }
-.feature { display: grid; grid-template-columns: 1fr 1.45fr; gap: 48px; align-items: center; margin: 0 0 72px; }
-.feature.rev { grid-template-columns: 1.45fr 1fr; }
-.feature.rev .text { order: 2; }
-.feature h3 { font-size: 24px; line-height: 1.25; margin: 0 0 10px; }
-.feature p { color: var(--sub); margin: 0 0 14px; }
+section { padding: 120px 0 0; }
+.head { text-align: center; max-width: 760px; margin: 0 auto 44px; }
+.head h2 { font-size: clamp(34px, 4.6vw, 56px); line-height: 1.04; margin: 0 0 16px; }
+.head p { color: var(--sub); font-size: 17.5px; margin: 0; }
+.kicker { display: inline-block; font-size: 12.5px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--blue); margin-bottom: 14px; }
+.card { background: var(--card); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line); padding: 22px; transition: box-shadow .2s ease, background .2s ease; }
+.card:hover { background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+.card h4 { margin: 0 0 6px; font-size: 16.5px; display: flex; align-items: center; gap: 12px; }
+.card p { margin: 0; color: var(--sub); font-size: 14.5px; }
+.ic { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; color: var(--blue-2); background: rgba(79,142,255,.12); box-shadow: inset 0 0 0 1px rgba(79,142,255,.25); flex: none; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .checks { margin: 0; padding: 0; list-style: none; }
-.checks li { padding: 5px 0 5px 28px; position: relative; }
+.checks li { padding: 5px 0 5px 28px; position: relative; color: #d6dae2; }
 .checks li::before {
   content: ""; position: absolute; left: 0; top: 9px; width: 18px; height: 18px; border-radius: 50%;
-  background: var(--chip) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231a7cf5' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center / 12px no-repeat;
+  background: rgba(79,142,255,.15) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237fb0ff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center / 12px no-repeat;
 }
-.tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); background: var(--chip); padding: 2px 10px; border-radius: 99px; margin-bottom: 10px; }
 
-/* Konvertieren per Umbenennen */
-.rename { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 26px; }
-.rn-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-2); font: 15.5px/1.2 Consolas, "Cascadia Code", ui-monospace, monospace; }
-.rn-row .ficon { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--chip); color: var(--accent); }
-.rn-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rn-row .ext { color: var(--accent); font-weight: 700; border-bottom: 2px solid var(--accent); padding: 0 1px; }
-.rn-row .caret { display: inline-block; width: 2px; height: 1.1em; background: var(--accent); vertical-align: -3px; margin-left: 1px; animation: blink 1s steps(1) infinite; }
+/* ── Suche ── */
+.search-demo { background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border-radius: 18px; box-shadow: inset 0 0 0 1px var(--line-2), 0 30px 80px -30px rgba(79,142,255,.45); padding: 18px; }
+.sbox { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; background: #05070b; box-shadow: inset 0 0 0 1px rgba(79,142,255,.45), 0 0 0 4px rgba(79,142,255,.1); font: 16px/1.2 Consolas, "Cascadia Code", ui-monospace, monospace; }
+.sbox svg.i { color: var(--blue-2); width: 20px; height: 20px; }
+.sbox .q { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; }
+.sbox .q .k { color: var(--blue-2); }
+.caret { display: inline-block; width: 2px; height: 1.1em; background: var(--blue); vertical-align: -3px; margin-left: 1px; animation: blink 1s steps(1) infinite; }
+.sbox .scope { font: 600 12px/1 "Segoe UI", system-ui, sans-serif; color: var(--sub); background: var(--card-2); padding: 6px 10px; border-radius: 999px; white-space: nowrap; }
 @keyframes blink { 50% { opacity: 0; } }
-.rn-arrow { display: flex; justify-content: center; padding: 10px 0; color: var(--sub); }
-.rn-arrow svg.i { width: 22px; height: 22px; }
-.rn-done { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, #22c55e 14%, transparent); color: var(--text); font-size: 14.5px; }
+.results { margin-top: 12px; display: grid; gap: 4px; align-content: start; min-height: 236px; }
+.res { display: grid; grid-template-columns: 32px 1fr auto; gap: 12px; align-items: center; padding: 9px 10px; border-radius: 10px; transition: opacity .25s ease, transform .25s ease; }
+.res:first-child { background: rgba(79,142,255,.1); box-shadow: inset 0 0 0 1px rgba(79,142,255,.25); }
+.res .fi { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--card-2); color: var(--sub); }
+.res .n { font-weight: 600; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.res .n mark { background: none; color: var(--blue-2); }
+.res .p { color: var(--dim); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.res .why { font-size: 12px; color: var(--sub); background: var(--card-2); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+.res.hide { opacity: 0; transform: translateY(4px); }
+.search-meta { display: flex; justify-content: space-between; color: var(--dim); font-size: 12.5px; margin-top: 10px; padding: 0 4px; }
+.syntax { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 28px; }
+.syntax > span { font-size: 13px; color: var(--sub); background: var(--card); box-shadow: inset 0 0 0 1px var(--line); border-radius: 999px; padding: 6px 14px; }
+.syntax code { background: none; border: 0; padding: 0; color: var(--blue-2); margin-right: 6px; }
+.search-cols { display: grid; grid-template-columns: 1.15fr 1fr; gap: 40px; align-items: center; }
+.modes { display: grid; gap: 12px; }
+.mode { display: grid; grid-template-columns: 36px 1fr; gap: 14px; }
+.mode h4 { margin: 0 0 4px; font-size: 16.5px; }
+.mode p { margin: 0; color: var(--sub); font-size: 14.5px; }
+
+/* ── Schaufenster mit Reitern ── */
+.tabs { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; }
+.tab { font: 600 14px/1 inherit; color: var(--sub); background: transparent; border: 0; padding: 10px 16px; border-radius: 999px; cursor: pointer; }
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { color: var(--text); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+.panel { display: grid; grid-template-columns: 1fr 1.5fr; gap: 48px; align-items: center; }
+.panel[hidden] { display: none; }
+.panel h3 { font-size: 28px; line-height: 1.15; margin: 0 0 12px; letter-spacing: -.02em; }
+.panel p { color: var(--sub); margin: 0 0 16px; }
+
+/* Umbenennen-Beispiel */
+.rename { background: var(--card); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line-2), 0 30px 70px -30px rgba(79,142,255,.4); padding: 24px; }
+.rn-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: #05070b; box-shadow: inset 0 0 0 1px var(--line); font: 15.5px/1.2 Consolas, "Cascadia Code", ui-monospace, monospace; }
+.rn-row .ficon { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; background: rgba(79,142,255,.12); color: var(--blue-2); }
+.rn-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rn-row .ext { color: var(--blue-2); font-weight: 700; border-bottom: 2px solid var(--blue); }
+.rn-arrow { display: flex; justify-content: center; padding: 10px 0; color: var(--dim); }
+.rn-done { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding: 10px 14px; border-radius: 12px; background: rgba(34,197,94,.1); box-shadow: inset 0 0 0 1px rgba(34,197,94,.25); font-size: 14.5px; }
 .rn-done svg.i { color: #22c55e; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-.chips span { font-size: 13px; color: var(--sub); border: 1px solid var(--line); border-radius: 99px; padding: 3px 11px; background: var(--panel); }
+.chips span { font-size: 12.5px; color: var(--sub); box-shadow: inset 0 0 0 1px var(--line); border-radius: 999px; padding: 4px 11px; }
 .chips b { color: var(--text); font-weight: 600; margin-right: 4px; }
 .fade { transition: opacity .25s ease; }
 
-/* Schnellansicht: Reiter mit großem Bild */
-.viewer { display: grid; grid-template-columns: 300px 1fr; gap: 28px; align-items: start; }
+/* Schnellansicht: Liste links, Bild rechts */
+.viewer { display: grid; grid-template-columns: 320px 1fr; gap: 32px; align-items: center; }
 .vtabs { display: flex; flex-direction: column; gap: 6px; }
-.vtab {
-  text-align: left; font: inherit; color: var(--text); background: transparent; border: 1px solid transparent; border-radius: 12px;
-  padding: 12px 14px; cursor: pointer; display: grid; grid-template-columns: 34px 1fr; gap: 2px 12px; align-items: center;
-}
-.vtab .ic { grid-row: span 2; width: 34px; height: 34px; border-radius: 9px; background: var(--chip); color: var(--accent); display: grid; place-items: center; }
-.vtab b { font-weight: 600; }
-.vtab small { color: var(--sub); font-size: 13.5px; line-height: 1.4; }
-.vtab:hover { background: var(--panel); border-color: var(--line); }
-.vtab[aria-selected="true"] { background: var(--panel); border-color: var(--accent); box-shadow: 0 6px 24px var(--glow); }
+.vtab { text-align: left; font: inherit; color: var(--text); background: transparent; border: 0; border-radius: 14px; padding: 14px 16px; cursor: pointer; display: grid; grid-template-columns: 36px 1fr; gap: 2px 14px; align-items: center; }
+.vtab .ic { grid-row: span 2; }
+.vtab b { font-weight: 650; }
+.vtab small { color: var(--sub); font-size: 13.5px; line-height: 1.45; }
+.vtab:hover { background: var(--card); }
+.vtab[aria-selected="true"] { background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line-2), inset 3px 0 0 var(--blue); }
 .vpanel figure.shot img { transition: opacity .2s ease; }
 .vcap { display: none; color: var(--sub); font-size: 15px; margin: 12px 2px 0; }
 
 /* Kurzbefehle */
-.skills { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; box-shadow: var(--shadow); }
-.skill { display: grid; grid-template-columns: 140px 1fr auto; gap: 14px; padding: 9px 12px; border-radius: 8px; align-items: center; }
-.skill:nth-child(1) { background: var(--chip); }
-.skill code { color: var(--accent); background: none; padding: 0; font-size: 14px; }
+.skills { background: var(--card); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line-2); padding: 8px; }
+.skill { display: grid; grid-template-columns: 130px 1fr; gap: 14px; padding: 10px 12px; border-radius: 10px; align-items: center; }
+.skill:nth-child(1) { background: rgba(79,142,255,.1); }
+.skill code { color: var(--blue-2); background: none; border: 0; padding: 0; font-size: 14px; }
 .skill > span { color: var(--sub); font-size: 14.5px; }
-.skill small { color: var(--sub); font-size: 12px; border: 1px solid var(--line); border-radius: 99px; padding: 0 8px; }
-
-/* Karten */
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; transition: border-color .15s ease, transform .15s ease; }
-.card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); transform: translateY(-2px); }
-.card h4 { margin: 0 0 6px; font-size: 16.5px; display: flex; align-items: center; gap: 10px; }
-.card .ic { width: 34px; height: 34px; border-radius: 9px; background: var(--chip); color: var(--accent); display: grid; place-items: center; flex: none; }
-.card p { margin: 0; color: var(--sub); font-size: 14.5px; }
-.card.hl { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 9%, var(--panel)), var(--panel) 60%); }
 
 /* Vergleich */
-.compare { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; font-size: 15px; }
-.compare th, .compare td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--line); }
+.compare { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; font-size: 15px; }
+.compare th, .compare td { padding: 14px 18px; text-align: left; border-bottom: 1px solid var(--line); }
 .compare tr:last-child td { border-bottom: 0; }
-.compare thead th { background: var(--bg-2); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--sub); }
-.compare td:not(:first-child), .compare th:not(:first-child) { text-align: center; width: 22%; }
-.compare .y { color: var(--accent); font-weight: 700; }
-.compare .n { color: var(--sub); }
-.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius); }
+.compare thead th { font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+.compare td:not(:first-child), .compare th:not(:first-child) { text-align: center; width: 20%; }
+.compare .y { color: var(--blue-2); font-weight: 700; }
+.compare .n { color: var(--dim); }
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius); max-width: 860px; margin: 0 auto; }
 
-/* Schritte */
-.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: s; }
-.step { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px 20px 20px; }
-.step::before { counter-increment: s; content: counter(s); width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font-weight: 700; margin-bottom: 12px; }
-.step h4 { margin: 0 0 4px; font-size: 16.5px; }
-.step p { margin: 0; color: var(--sub); font-size: 14.5px; }
-
-/* Download */
-.download { position: relative; margin: 96px 0 0; padding: 56px 32px; text-align: center; border-radius: 22px; overflow: hidden; color: #fff; background: linear-gradient(135deg, #1468d8, #3fa6ff); isolation: isolate; }
-.download::after { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(600px 300px at 85% 0%, rgba(255,255,255,.22), transparent 70%), radial-gradient(500px 260px at 0% 100%, rgba(0,0,0,.16), transparent 70%); }
-.download img { width: 64px; height: 64px; }
-.download h2 { color: #fff; margin: 12px 0 10px; font-size: clamp(27px, 3.6vw, 40px); }
-.download p { opacity: .94; max-width: 640px; margin: 0 auto 26px; }
-.download .btn { background: #fff; color: #0b3d78; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
-.download .btn.ghost { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.65); box-shadow: none; }
-.download code { background: rgba(0,0,0,.2); color: #fff; }
-.download a.plain { color: #fff; text-decoration: underline; }
-.download .req { margin-top: 22px; font-size: 14px; opacity: .9; }
-
-/* Häufige Fragen */
-.faq { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; align-items: start; }
+/* Fragen */
+.faq { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; align-items: start; max-width: 1040px; margin: 0 auto; }
 .faq-col { display: grid; gap: 12px; }
-details { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 0 18px; }
-details[open] { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
-summary { cursor: pointer; list-style: none; padding: 15px 28px 15px 0; font-weight: 600; position: relative; }
+details { background: var(--card); border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line); padding: 0 20px; transition: background .2s ease; }
+details[open] { background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+summary { cursor: pointer; list-style: none; padding: 17px 40px 17px 0; font-weight: 600; position: relative; }
 summary::-webkit-details-marker { display: none; }
-summary::after { content: "+"; position: absolute; right: 0; top: 12px; font-size: 22px; line-height: 1; color: var(--sub); transition: transform .2s ease; }
-details[open] summary::after { transform: rotate(45deg); }
-details p { margin: 0 0 16px; color: var(--sub); font-size: 15px; }
+summary::after { content: "+"; position: absolute; right: 0; top: 13px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; line-height: 1; color: var(--sub); background: var(--card-2); transition: transform .2s ease; }
+details[open] summary::after { transform: rotate(45deg); color: var(--text); }
+details p { margin: 0 0 18px; color: var(--sub); font-size: 15px; }
+
+/* Abschluss */
+.final { position: relative; isolation: isolate; margin-top: 120px; padding: 96px 28px; text-align: center; border-radius: 28px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
+.final::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(600px 320px at 50% 0%, rgba(79,142,255,.35), transparent 70%), radial-gradient(800px 400px at 50% 120%, rgba(79,142,255,.18), transparent 70%), #04060a; }
+.final::after { content: ""; position: absolute; inset: 0; z-index: -1; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 48px 48px; opacity: .35; -webkit-mask-image: radial-gradient(ellipse at center, #000, transparent 70%); mask-image: radial-gradient(ellipse at center, #000, transparent 70%); }
+.final img { width: 72px; height: 72px; filter: drop-shadow(0 10px 30px rgba(79,142,255,.5)); }
+.final h2 { font-size: clamp(32px, 4.6vw, 56px); line-height: 1.06; margin: 18px 0 16px; }
+.final p { color: var(--sub); max-width: 560px; margin: 0 auto 30px; }
+.final .cta { justify-content: center; }
+.final .req { margin: 20px 0 0; font-size: 13.5px; color: var(--dim); }
 
 /* Kontakt + Fuß */
-.contact { margin-top: 72px; display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 26px; }
+.contact { margin-top: 40px; display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; background: var(--card); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line); padding: 24px 28px; }
 .contact h3 { margin: 0 0 4px; font-size: 20px; }
 .contact p { margin: 0; color: var(--sub); }
-footer { margin-top: 48px; border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--sub); font-size: 14px; }
+footer { margin-top: 56px; border-top: 1px solid var(--line); padding: 28px 0 44px; color: var(--dim); font-size: 14px; }
 footer .wrap { display: flex; gap: 10px 24px; justify-content: space-between; flex-wrap: wrap; align-items: center; }
 footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
 footer a { color: var(--sub); }
 footer a:hover { color: var(--text); }
 
 /* Großansicht */
-.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: none; align-items: center; justify-content: center; padding: 56px 16px 24px; z-index: 50; }
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.92); display: none; align-items: center; justify-content: center; padding: 56px 16px 24px; z-index: 50; }
 .lightbox.on { display: flex; }
-.lightbox img { max-width: 100%; max-height: 100%; border-radius: 10px; box-shadow: 0 20px 80px rgba(0,0,0,.6); }
-.lightbox button { position: absolute; border: 0; background: rgba(255,255,255,.14); color: #fff; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
-.lightbox button:hover { background: rgba(255,255,255,.26); }
+.lightbox img { max-width: 100%; max-height: 100%; border-radius: 12px; box-shadow: 0 0 0 1px var(--line-2), 0 20px 80px rgba(0,0,0,.6); }
+.lightbox button { position: absolute; border: 0; background: rgba(255,255,255,.1); color: #fff; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
+.lightbox button:hover { background: rgba(255,255,255,.2); }
 .lightbox button svg.i { width: 22px; height: 22px; }
 .lightbox .x { top: 12px; right: 12px; }
 .lightbox .prev { left: 12px; top: 50%; transform: translateY(-50%); }
 .lightbox .next { right: 12px; top: 50%; transform: translateY(-50%); }
-.lightbox .cap { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; color: #ddd; font-size: 14px; padding: 0 16px; }
+.lightbox .cap { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; color: #ccc; font-size: 14px; padding: 0 16px; }
 
 /* sanftes Einblenden beim Scrollen */
-.reveal { opacity: 0; transform: translateY(14px); transition: opacity .5s ease, transform .5s ease; }
+.reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
 .reveal.in { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .reveal { opacity: 1; transform: none; transition: none; }
-  .btn, .card { transition: none; }
-  .rn-row .caret { animation: none; }
+  .btn, .card, .res { transition: none; }
+  .caret { animation: none !important; }
 }
 
-/* ── Tablet ── */
+/* ── schmalere Bildschirme ── */
 @media (max-width: 1060px) {
   .menu-btn { display: inline-flex; }
-  nav.links {
-    position: absolute; top: 60px; left: 0; right: 0; margin: 0; flex-direction: column; gap: 2px; padding: 10px 16px 16px;
-    background: var(--bg); border-bottom: 1px solid var(--line); box-shadow: 0 18px 30px rgba(0,0,0,.12); display: none;
-  }
+  nav.links { position: absolute; top: 64px; left: 0; right: 0; flex-direction: column; gap: 2px; padding: 10px 16px 16px; background: rgba(0,0,0,.96); border-bottom: 1px solid var(--line); display: none; }
   nav.links.open { display: flex; }
-  nav.links a { font-size: 16px; padding: 11px 12px; }
-  header.top .lang-btn { margin-left: auto; }
+  nav.links a { font-size: 16px; padding: 12px 14px; border-radius: 12px; }
 }
 @media (max-width: 960px) {
-  .feature, .feature.rev { grid-template-columns: 1fr; gap: 22px; margin-bottom: 56px; }
-  .feature.rev .text { order: 0; }
-  .grid { grid-template-columns: 1fr 1fr; }
-  .facts { grid-template-columns: 1fr 1fr; }
-  .viewer { grid-template-columns: 1fr; gap: 16px; }
-  .vtabs { flex-direction: row; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; margin: 0 -24px; padding-left: 24px; padding-right: 24px; scrollbar-width: none; }
+  .hero { padding-top: 56px; }
+  .hero .grid2, .search-cols, .panel, .viewer { grid-template-columns: 1fr; gap: 28px; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stat:nth-child(3) { border-left: 0; }
+  .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .grid3 { grid-template-columns: 1fr 1fr; }
+  .faq { grid-template-columns: 1fr; }
+  .tabs { justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; margin: 0 -28px 24px; padding: 0 28px 4px; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: none; }
+  .vtabs { flex-direction: row; overflow-x: auto; margin: 0 -28px; padding: 0 28px 4px; scrollbar-width: none; }
   .vtabs::-webkit-scrollbar { display: none; }
-  .vtab { flex: none; grid-template-columns: auto auto; scroll-snap-align: start; padding: 7px 14px 7px 7px; border-color: var(--line); background: var(--panel); border-radius: 99px; }
+  .vtab { flex: none; grid-template-columns: auto auto; padding: 7px 14px 7px 7px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); border-radius: 999px; }
+  .vtab[aria-selected="true"] { box-shadow: inset 0 0 0 1px var(--blue); }
   .vtab .ic { grid-row: auto; width: 28px; height: 28px; border-radius: 50%; }
   .vtab small { display: none; }
   .vcap { display: block; }
-  .steps { grid-template-columns: 1fr; }
-  .faq { grid-template-columns: 1fr; }
 }
-
-/* ── Handy ── */
 @media (max-width: 600px) {
-  .wrap { padding: 0 16px; }
-  .vtabs { margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
-  header.top .dl-top, .brand .ver { display: none; }
-  .hero { padding: 44px 0 8px; }
+  .wrap { padding: 0 18px; }
+  .tabs, .vtabs { margin-left: -18px; margin-right: -18px; padding-left: 18px; padding-right: 18px; }
+  header.top .dl-top { display: none; }
+  .brand { margin-right: 0; }
+  .hero { padding: 40px 0 40px; }
   .hero .cta .btn { width: 100%; }
-  .window { margin-top: 36px; border-radius: 10px; }
-  .window .bar { height: 26px; padding: 0 10px; }
-  .window .bar i { width: 8px; height: 8px; }
-  .window .bar span { display: none; }
-  .facts { margin-top: 32px; gap: 10px; }
-  .fact { padding: 14px 10px; }
-  .fact b { font-size: 20px; }
-  .fact span { font-size: 13px; }
-  section { padding-top: 72px; }
-  section p.intro { font-size: 16.5px; margin-bottom: 26px; }
-  .feature h3 { font-size: 21px; }
-  .grid { grid-template-columns: 1fr; }
+  .stat { padding: 22px 10px; }
+  section { padding-top: 88px; }
+  .head { margin-bottom: 30px; }
+  .head p { font-size: 16.5px; }
+  .grid3 { grid-template-columns: 1fr; }
+  .search-demo { padding: 12px; }
+  .sbox { font-size: 14px; padding: 12px; }
+  .sbox .scope { display: none; }
+  .res { grid-template-columns: 28px 1fr; }
+  .res .fi { width: 28px; height: 28px; }
+  .res .why { display: none; }
   .rename { padding: 16px; }
   .rn-row { font-size: 14px; padding: 10px; }
-  .skill { grid-template-columns: 1fr; gap: 0; padding: 9px 10px; }
-  .skill small { display: none; }
+  .skill { grid-template-columns: 1fr; gap: 0; }
+  .panel h3 { font-size: 24px; }
   .compare { font-size: 14px; }
-  .compare th, .compare td { padding: 10px 10px; }
-  .download { margin-top: 72px; padding: 40px 20px; border-radius: 18px; }
-  .download .cta .btn { width: 100%; }
+  .compare th, .compare td { padding: 11px 10px; }
+  .final { margin-top: 88px; padding: 64px 20px; border-radius: 22px; }
+  .final .cta .btn { width: 100%; }
   .contact { padding: 20px; }
   .contact .btn { width: 100%; }
   footer .wrap { flex-direction: column; align-items: flex-start; }
@@ -330,6 +320,10 @@ footer a:hover { color: var(--text); }
 
 <!-- Linien-Icons -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-drive" viewBox="0 0 24 24"><rect x="2" y="13" width="20" height="8" rx="2"/><path d="M5 13 7.5 4h9L19 13M6 17h.01M10 17h.01"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></symbol>
   <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
   <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></symbol>
   <symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7" rx="1"/></symbol>
@@ -338,26 +332,22 @@ footer a:hover { color: var(--text); }
   <symbol id="i-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6C22 6 17.5 2 12 2z"/></symbol>
   <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M10 13h4M7 16h10"/></symbol>
   <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></symbol>
-  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M6 14l1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></symbol>
   <symbol id="i-bot" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8V4M9 4h6M9 13v2M15 13v2"/></symbol>
   <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M8 22h8"/></symbol>
-  <symbol id="i-brush" viewBox="0 0 24 24"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></symbol>
-  <symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></symbol>
-  <symbol id="i-convert" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
-  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
   <symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></symbol>
   <symbol id="i-cube" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></symbol>
   <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></symbol>
   <symbol id="i-film" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/></symbol>
   <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+  <symbol id="i-git" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 4-6 3-11 5.5"/></symbol>
   <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></symbol>
   <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></symbol>
   <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8 12.5 3 3 5-6"/></symbol>
-  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
-  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
   <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
@@ -366,431 +356,339 @@ footer a:hover { color: var(--text); }
 
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="#top"><img src="img/logo.png" alt="">Foldex <span class="ver">0.9.3</span></a>
+    <a class="brand" href="#top"><img src="img/logo.png" alt="">Foldex</a>
     <nav class="links" id="nav">
-      <a href="#explorer">Explorer</a>
-      <a href="#convert"><span lang="en">Convert</span><span lang="de">Konvertieren</span></a>
+      <a href="#search"><span lang="en">Search</span><span lang="de">Suche</span></a>
+      <a href="#features"><span lang="en">Features</span><span lang="de">Funktionen</span></a>
       <a href="#quicklook"><span lang="en">Quick Look</span><span lang="de">Schnellansicht</span></a>
       <a href="#ai"><span lang="en">AI</span><span lang="de">KI</span></a>
-      <a href="#media"><span lang="en">Media</span><span lang="de">Medien</span></a>
-      <a href="#features"><span lang="en">Features</span><span lang="de">Funktionen</span></a>
+      <a href="#more"><span lang="en">More</span><span lang="de">Mehr</span></a>
       <a href="#faq"><span lang="en">FAQ</span><span lang="de">Fragen</span></a>
     </nav>
-    <button class="icon-btn lang-btn" id="lang" type="button" title="Sprache / Language">
-      <svg class="i"><use href="#i-globe"/></svg><span lang="en">Deutsch</span><span lang="de">English</span>
-    </button>
-    <button class="icon-btn theme-btn" id="theme" type="button" aria-label="Light / dark" title="Light / dark">
-      <svg class="i sun"><use href="#i-sun"/></svg><svg class="i moon"><use href="#i-moon"/></svg>
-    </button>
-    <a class="btn small dl-top" href="#download"><span lang="en">Download</span><span lang="de">Herunterladen</span></a>
-    <button class="icon-btn menu-btn" id="menu" type="button" aria-label="Menu" aria-expanded="false" aria-controls="nav">
-      <svg class="i"><use href="#i-menu"/></svg>
-    </button>
+    <div class="right">
+      <button class="pill-btn" id="lang" type="button" title="Sprache / Language"><svg class="i"><use href="#i-globe"/></svg><span lang="en">Deutsch</span><span lang="de">English</span></button>
+      <a class="btn small dl-top" href="#download"><svg class="i"><use href="#i-download"/></svg><span lang="en">Download</span><span lang="de">Herunterladen</span></a>
+      <button class="pill-btn menu-btn" id="menu" type="button" aria-label="Menu" aria-expanded="false" aria-controls="nav"><svg class="i"><use href="#i-menu"/></svg></button>
+    </div>
   </div>
 </header>
 
-<main class="wrap" id="top">
+<main id="top">
   <div class="hero">
-    <span class="pill"><b><span lang="en">New</span><span lang="de">Neu</span></b><span lang="en">Version 0.9.3 – free for Windows</span><span lang="de">Version 0.9.3 – kostenlos für Windows</span></span>
-    <h1 lang="en">The file explorer<br><span class="grad">that simply does more.</span></h1>
-    <h1 lang="de">Der Datei-Explorer,<br><span class="grad">der einfach mehr kann.</span></h1>
-    <p class="lead" lang="en">Foldex is fast, light on memory and opens almost any file instantly – code, Office, PDFs, videos, 3D models and fonts. Rename <code>photo.heic</code> to <code>photo.jpg</code> and it converts. Plus local AI, cloud drives, terminal and Git in one window.</p>
-    <p class="lead" lang="de">Foldex ist schnell, spart Arbeitsspeicher und zeigt fast jede Datei sofort an – Code, Office, PDFs, Videos, 3D-Modelle und Schriften. Aus <code>foto.heic</code> wird durch Umbenennen in <code>foto.jpg</code> ein echtes JPG. Dazu lokale KI, Cloud-Laufwerke, Terminal und Git in einem Fenster.</p>
-    <div class="cta">
-      <a class="btn" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe"><svg class="i"><use href="#i-download"/></svg>
-        <span lang="en">Download for Windows</span><span lang="de">Foldex für Windows laden</span></a>
-      <a class="btn ghost" href="https://github.com/xJetouss/Foldex">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.26 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>
-        <span lang="en">Source on GitHub</span><span lang="de">Quelltext auf GitHub</span></a>
-    </div>
-    <div class="meta" lang="en"><span>Free</span><span>No account</span><span>No admin rights</span><span>Automatic updates</span></div>
-    <div class="meta" lang="de"><span>Kostenlos</span><span>ohne Konto</span><span>ohne Administratorrechte</span><span>automatische Updates</span></div>
-    <div class="window">
-      <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span>Foldex</span></div>
-      <figure class="shot"><img src="img/explorer.webp" alt="Foldex: folder sorted by size, sidebar and preview" width="1440" height="900" fetchpriority="high"></figure>
+    <div class="wrap grid2">
+      <div>
+        <span class="badge"><b><span lang="en">New</span><span lang="de">Neu</span></b><span lang="en">Version 0.9.3 · free for Windows</span><span lang="de">Version 0.9.3 · kostenlos für Windows</span></span>
+        <h1 class="display" lang="en">The file explorer<br><span class="blue">built for speed.</span></h1>
+        <h1 class="display" lang="de">Der Datei-Explorer,<br><span class="blue">der einfach mehr kann.</span></h1>
+        <p class="lead" lang="en">Find any file on any drive as you type. Open almost every file with the space bar. Rename <code>.heic</code> to <code>.jpg</code> and it converts. Plus local AI, terminal and Git – in one fast window.</p>
+        <p class="lead" lang="de">Jede Datei auf jedem Laufwerk finden, während du tippst. Fast jede Datei mit der Leertaste ansehen. <code>.heic</code> in <code>.jpg</code> umbenennen – und sie wird umgewandelt. Dazu lokale KI, Terminal und Git – in einem schnellen Fenster.</p>
+        <div class="cta">
+          <a class="btn big" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe"><svg class="i"><use href="#i-download"/></svg><span lang="en">Download for Windows</span><span lang="de">Für Windows laden</span></a>
+          <a class="btn ghost big" href="#search"><span lang="en">See the search</span><span lang="de">Suche ansehen</span></a>
+        </div>
+        <div class="sub-links"><span lang="en">Free · no account · no admin rights</span><span lang="de">Kostenlos · ohne Konto · ohne Administratorrechte</span> · <a href="https://github.com/xJetouss/Foldex/releases"><span lang="en">Other versions</span><span lang="de">Andere Versionen</span></a></div>
+      </div>
+      <div class="window reveal">
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span>Foldex</span></div>
+        <figure class="shot"><img src="img/explorer.webp" alt="Foldex: folder sorted by size, sidebar and preview" width="1440" height="900" fetchpriority="high"></figure>
+      </div>
     </div>
   </div>
 
-  <div class="facts reveal">
-    <div class="fact"><b>Rust</b><span lang="en">native, GPU-rendered</span><span lang="de">nativ, GPU-gerendert</span></div>
-    <div class="fact"><b>100+</b><span lang="en">formats in Quick Look</span><span lang="de">Formate in der Schnellansicht</span></div>
-    <div class="fact"><b lang="en">Rename</b><b lang="de">Umbenennen</b><span lang="en">is converting</span><span lang="de">ist Konvertieren</span></div>
-    <div class="fact"><b lang="en">Local</b><b lang="de">Lokal</b><span lang="en">AI without the cloud</span><span lang="de">KI ohne Cloud-Zwang</span></div>
+  <div class="wrap">
+    <div class="stats reveal">
+      <div class="stat"><b class="display">100+</b><span lang="en">formats in Quick Look</span><span lang="de">Formate in der Schnellansicht</span></div>
+      <div class="stat"><b class="display">~200</b><span lang="en">languages with syntax colours</span><span lang="de">Sprachen mit Syntaxfarben</span></div>
+      <div class="stat"><b class="display">50+</b><span lang="en">AI skills behind a slash</span><span lang="de">KI-Skills per Schrägstrich</span></div>
+      <div class="stat"><b class="display">0 €</b><span lang="en">free, no account</span><span lang="de">kostenlos, ohne Konto</span></div>
+    </div>
   </div>
 
-  <section id="explorer">
-    <span class="kicker">Explorer</span>
-    <h2 lang="en">A file explorer the way it should be</h2>
-    <h2 lang="de">Ein Explorer, wie er sein sollte</h2>
-    <p class="intro" lang="en">Tabs, split views, real folder sizes and a preview that thinks ahead – everything stays smooth even in folders with tens of thousands of files.</p>
-    <p class="intro" lang="de">Tabs, geteilte Ansichten, echte Ordnergrößen und eine Vorschau, die mitdenkt – auch in Ordnern mit zehntausenden Dateien bleibt alles flüssig.</p>
-    <div class="feature reveal">
-      <div class="text">
-        <div class="tag"><span lang="en">Folders</span><span lang="de">Ordner</span></div>
-        <h3 lang="en">Folder sizes at a glance</h3>
-        <h3 lang="de">Ordnergrößen auf einen Blick</h3>
-        <p lang="en">Foldex calculates folder sizes in the background and remembers them. Sort by size and you instantly see what eats your disk.</p>
-        <p lang="de">Foldex rechnet Ordnergrößen im Hintergrund aus und merkt sie sich. Nach Größe sortieren zeigt sofort, was Platz frisst.</p>
-        <ul class="checks" lang="en">
-          <li>Tabs and split tiles, drag tabs between windows</li>
-          <li>Instant filter in the folder and indexed search across all drives</li>
-          <li>Filters, groups, views: details, list, grid, large icons</li>
-          <li>Undo for copy, move, rename and delete</li>
-        </ul>
-        <ul class="checks" lang="de">
-          <li>Tabs und geteilte Kacheln, Tabs zwischen Fenstern ziehen</li>
-          <li>Sofortsuche im Ordner und Index-Suche über alle Laufwerke</li>
-          <li>Filter, Gruppen, Ansichten: Details, Liste, Raster, große Symbole</li>
-          <li>Rückgängig für Kopieren, Verschieben, Umbenennen und Löschen</li>
-        </ul>
+  <!-- ── Suche ── -->
+  <section id="search">
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="kicker"><span lang="en">Search</span><span lang="de">Suche</span></span>
+        <h2 class="display" lang="en">Find anything.<br><span class="blue">On every drive.</span></h2>
+        <h2 class="display" lang="de">Alles finden.<br><span class="blue">Auf jedem Laufwerk.</span></h2>
+        <p lang="en">Foldex indexes your drives in the background. Type a few letters and the results are there – by name, by type, or by what's written inside.</p>
+        <p lang="de">Foldex indiziert deine Laufwerke im Hintergrund. Ein paar Buchstaben tippen und die Treffer sind da – nach Name, nach Art oder nach dem, was in der Datei steht.</p>
       </div>
-      <figure class="shot"><img src="img/explorer.webp" alt="Folder sorted by size" width="1440" height="900" loading="lazy"></figure>
-    </div>
-    <div class="feature rev reveal">
-      <div class="text">
-        <div class="tag"><span lang="en">Developers</span><span lang="de">Entwickler</span></div>
-        <h3 lang="en">Git, terminal and editor built in</h3>
-        <h3 lang="de">Git, Terminal und Editor eingebaut</h3>
-        <p lang="en">Changed files are marked, the branch sits in the toolbar and a terminal opens right in the folder. Code is shown with syntax colours for around 200 languages – and you can edit it.</p>
-        <p lang="de">Geänderte Dateien sind markiert, der Zweig steht in der Leiste, ein Terminal öffnet sich direkt im Ordner. Code wird mit Syntaxfarben für rund 200 Sprachen angezeigt und lässt sich bearbeiten.</p>
-        <ul class="checks" lang="en">
-          <li>Git status per file, switch branches, browse commits</li>
-          <li>Terminal with completion (PowerShell, cmd, Bash)</li>
-          <li>Open in VS Code, Cursor, Zed and more with a right-click</li>
-        </ul>
-        <ul class="checks" lang="de">
-          <li>Git-Status je Datei, Zweig wechseln, Commits ansehen</li>
-          <li>Terminal mit Vervollständigung (PowerShell, cmd, Bash)</li>
-          <li>Öffnen in VS Code, Cursor, Zed und Co. per Rechtsklick</li>
-        </ul>
+      <div class="search-cols">
+        <div class="search-demo reveal" aria-label="Search example">
+          <div class="sbox"><svg class="i"><use href="#i-search"/></svg><span class="q" id="sq"></span><span class="scope"><span lang="en">All drives</span><span lang="de">Alle Laufwerke</span></span></div>
+          <div class="results" id="sres"></div>
+          <div class="search-meta"><span id="scount"></span><span>Index: C:\ D:\ E:\</span></div>
+        </div>
+        <div class="modes reveal">
+          <div class="mode card"><span class="ic"><svg class="i"><use href="#i-bolt"/></svg></span><div><h4 lang="en">Instant filter</h4><h4 lang="de">Sofortsuche im Ordner</h4><p lang="en">Start typing in any folder – the list filters as you type, even with tens of thousands of files.</p><p lang="de">Im Ordner einfach lostippen – die Liste filtert sofort, auch bei zehntausenden Dateien.</p></div></div>
+          <div class="mode card"><span class="ic"><svg class="i"><use href="#i-drive"/></svg></span><div><h4 lang="en">Index search across all drives</h4><h4 lang="de">Index-Suche über alle Laufwerke</h4><p lang="en">Words in any order, exclusions, file types and folders – the index answers while you type.</p><p lang="de">Wörter in beliebiger Reihenfolge, Ausschlüsse, Dateitypen und Ordner – der Index antwortet, während du tippst.</p></div></div>
+          <div class="mode card"><span class="ic"><svg class="i"><use href="#i-scan"/></svg></span><div><h4 lang="en">Content search with OCR</h4><h4 lang="de">Inhaltssuche mit Texterkennung</h4><p lang="en">Searches inside PDFs, documents and photos of receipts – and explains each hit: terms, date, amount and the spot in the text.</p><p lang="de">Sucht in PDFs, Dokumenten und Fotos von Belegen – und erklärt jeden Treffer: Begriffe, Datum, Betrag und die Stelle im Text.</p></div></div>
+        </div>
       </div>
-      <figure class="shot"><img src="img/projekt.webp" alt="Project folder with Git markers" width="1440" height="900" loading="lazy"></figure>
-    </div>
-    <div class="feature reveal">
-      <div class="text">
-        <div class="tag"><span lang="en">Personal</span><span lang="de">Persönlich</span></div>
-        <h3 lang="en">Folder icons that match the content</h3>
-        <h3 lang="de">Ordner-Icons, die zum Inhalt passen</h3>
-        <p lang="en">When you change a folder icon, Foldex first suggests icons that fit what's inside – pictures, code, Git, music, documents. Plus over a thousand symbols from three icon themes, colours or your own image.</p>
-        <p lang="de">Beim Ändern eines Ordner-Icons schlägt Foldex zuerst Vorlagen vor, die zum Inhalt passen – Bilder, Code, Git, Musik, Dokumente. Dazu über tausend Symbole aus drei Icon-Themes, Farben oder ein eigenes Bild.</p>
+      <div class="syntax reveal">
+        <span><code>rechnung 2026</code><span lang="en">all words, any order</span><span lang="de">alle Wörter, egal welche Reihenfolge</span></span>
+        <span><code>ext:pdf,docx</code><span lang="en">only these types</span><span lang="de">nur diese Typen</span></span>
+        <span><code>*.psd</code><span lang="en">by extension</span><span lang="de">nach Endung</span></span>
+        <span><code>!backup</code><span lang="en">exclude a word</span><span lang="de">Wort ausschließen</span></span>
+        <span><code>is:dir</code><span lang="en">only folders</span><span lang="de">nur Ordner</span></span>
+        <span><code>projekte/rust</code><span lang="en">match the path</span><span lang="de">im Pfad suchen</span></span>
+        <span><code>inhalt:"Media Markt"</code><span lang="en">inside the file</span><span lang="de">im Dateiinhalt</span></span>
       </div>
-      <figure class="shot"><img src="img/icons.webp" alt="Changing a folder icon with suggestions" width="1440" height="900" loading="lazy"></figure>
     </div>
   </section>
 
-  <section id="convert">
-    <span class="kicker"><span lang="en">Convert</span><span lang="de">Konvertieren</span></span>
-    <h2 lang="en">Change the extension – get the format</h2>
-    <h2 lang="de">Endung ändern – Format bekommen</h2>
-    <p class="intro" lang="en">No converter websites, no extra app. Rename a file to a new extension and Foldex really converts it – images, audio, video, documents and archives.</p>
-    <p class="intro" lang="de">Keine Konverter-Webseiten, kein Extra-Programm. Datei umbenennen, neue Endung eintippen – und Foldex wandelt sie wirklich um: Bilder, Audio, Video, Dokumente und Archive.</p>
-    <div class="feature reveal">
-      <div class="text">
-        <div class="tag"><span lang="en">Rename to convert</span><span lang="de">Umbenennen = Konvertieren</span></div>
-        <h3 lang="en">F2, type the new extension, done</h3>
-        <h3 lang="de">F2, neue Endung tippen, fertig</h3>
-        <p lang="en">Foldex recognises a convertible format while you rename and converts in the background with a progress bar. If you switch to a completely different kind of file, it asks first.</p>
-        <p lang="de">Foldex erkennt beim Umbenennen ein umwandelbares Format und konvertiert im Hintergrund mit Fortschrittsbalken. Bei einem Wechsel in eine ganz andere Dateiart fragt es vorher nach.</p>
-        <ul class="checks" lang="en">
-          <li>The original goes to the recycle bin – undo brings it back</li>
-          <li>Many files at once: right-click → <em>Convert</em></li>
-          <li>Cancel any time, half-finished files are removed</li>
-        </ul>
-        <ul class="checks" lang="de">
-          <li>Das Original landet im Papierkorb – Rückgängig holt es zurück</li>
-          <li>Viele Dateien auf einmal: Rechtsklick → <em>Konvertieren</em></li>
-          <li>Jederzeit abbrechen, halbfertige Dateien werden entfernt</li>
-        </ul>
+  <!-- ── Schaufenster ── -->
+  <section id="features">
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="kicker"><span lang="en">Features</span><span lang="de">Funktionen</span></span>
+        <h2 class="display" lang="en">All of this.<br><span class="blue">In one window.</span></h2>
+        <h2 class="display" lang="de">All das.<br><span class="blue">In einem Fenster.</span></h2>
       </div>
-      <div class="rename" aria-label="Example: rename to convert">
-        <div class="rn-row"><span class="ficon"><svg class="i"><use href="#i-image"/></svg></span><span class="name fade" id="rn-from"><span class="base">holiday</span>.<span class="ext">heic</span></span></div>
-        <div class="rn-arrow"><svg class="i"><use href="#i-arrow-down"/></svg></div>
-        <div class="rn-row"><span class="ficon"><svg class="i"><use href="#i-pencil"/></svg></span><span class="name fade" id="rn-to"><span class="base">holiday</span>.<span class="ext">jpg</span><span class="caret"></span></span></div>
-        <div class="rn-done fade" id="rn-done"><svg class="i"><use href="#i-check"/></svg><span lang="en">Converted to <b id="rn-fmt-en">JPG</b> · original in the recycle bin</span><span lang="de">In <b id="rn-fmt-de">JPG</b> umgewandelt · Original im Papierkorb</span></div>
-        <div class="chips">
-          <span><b lang="en">Images</b><b lang="de">Bilder</b>JPG PNG WebP AVIF GIF SVG ICO PDF …</span>
-          <span><b>Audio</b>MP3 WAV FLAC AAC OGG Opus …</span>
-          <span><b>Video</b>MP4 MOV MKV WebM AVI GIF …</span>
-          <span><b lang="en">Documents</b><b lang="de">Dokumente</b>PDF DOCX ODT RTF TXT HTML MD EPUB</span>
-          <span><b lang="en">Archives</b><b lang="de">Archive</b>ZIP 7z TAR.GZ TAR.XZ TAR.ZST</span>
+      <div class="tabs reveal" role="tablist" aria-label="Features">
+        <button class="tab" role="tab" aria-selected="true" data-panel="p-explorer">Explorer</button>
+        <button class="tab" role="tab" aria-selected="false" data-panel="p-convert"><span lang="en">Convert</span><span lang="de">Konvertieren</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-panel="p-dev"><span lang="en">Developers</span><span lang="de">Entwickler</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-panel="p-icons"><span lang="en">Folder icons</span><span lang="de">Ordner-Icons</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-panel="p-media"><span lang="en">Images &amp; media</span><span lang="de">Bilder &amp; Medien</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-panel="p-updates">Updates</button>
+      </div>
+
+      <div class="panel" id="p-explorer" role="tabpanel">
+        <div>
+          <h3 lang="en">Folder sizes, tabs, split views</h3><h3 lang="de">Ordnergrößen, Tabs, geteilte Ansichten</h3>
+          <p lang="en">Foldex calculates folder sizes in the background and remembers them – sort by size and see instantly what eats your disk.</p>
+          <p lang="de">Foldex rechnet Ordnergrößen im Hintergrund aus und merkt sie sich – nach Größe sortieren zeigt sofort, was Platz frisst.</p>
+          <ul class="checks" lang="en"><li>Tabs and split tiles, drag tabs between windows</li><li>Filters, groups, views: details, list, grid, large icons</li><li>Undo for copy, move, rename and delete</li></ul>
+          <ul class="checks" lang="de"><li>Tabs und geteilte Kacheln, Tabs zwischen Fenstern ziehen</li><li>Filter, Gruppen, Ansichten: Details, Liste, Raster, große Symbole</li><li>Rückgängig für Kopieren, Verschieben, Umbenennen und Löschen</li></ul>
+        </div>
+        <figure class="shot framed"><img src="img/explorer.webp" alt="Folder sorted by size" width="1440" height="900" loading="lazy"></figure>
+      </div>
+
+      <div class="panel" id="p-convert" role="tabpanel" hidden>
+        <div>
+          <h3 lang="en">Change the extension – get the format</h3><h3 lang="de">Endung ändern – Format bekommen</h3>
+          <p lang="en">Press F2, type a new extension, done. Foldex converts images, audio, video, documents and archives in the background. If you switch to a completely different kind of file, it asks first.</p>
+          <p lang="de">F2 drücken, neue Endung tippen, fertig. Foldex wandelt Bilder, Audio, Video, Dokumente und Archive im Hintergrund um. Bei einem Wechsel in eine ganz andere Dateiart fragt es vorher nach.</p>
+          <ul class="checks" lang="en"><li>The original goes to the recycle bin – undo brings it back</li><li>Many files at once: right-click → <em>Convert</em></li><li>Cancel any time, half-finished files are removed</li></ul>
+          <ul class="checks" lang="de"><li>Das Original landet im Papierkorb – Rückgängig holt es zurück</li><li>Viele Dateien auf einmal: Rechtsklick → <em>Konvertieren</em></li><li>Jederzeit abbrechen, halbfertige Dateien werden entfernt</li></ul>
+        </div>
+        <div class="rename" aria-label="Example: rename to convert">
+          <div class="rn-row"><span class="ficon"><svg class="i"><use href="#i-image"/></svg></span><span class="name fade" id="rn-from"><span class="base">holiday</span>.<span class="ext">heic</span></span></div>
+          <div class="rn-arrow"><svg class="i"><use href="#i-arrow-down"/></svg></div>
+          <div class="rn-row"><span class="ficon"><svg class="i"><use href="#i-pencil"/></svg></span><span class="name fade" id="rn-to"><span class="base">holiday</span>.<span class="ext">jpg</span><span class="caret"></span></span></div>
+          <div class="rn-done fade" id="rn-done"><svg class="i"><use href="#i-check"/></svg><span lang="en">Converted to <b class="rn-fmt">JPG</b> · original in the recycle bin</span><span lang="de">In <b class="rn-fmt">JPG</b> umgewandelt · Original im Papierkorb</span></div>
+          <div class="chips">
+            <span><b lang="en">Images</b><b lang="de">Bilder</b>JPG PNG WebP AVIF GIF SVG ICO PDF …</span>
+            <span><b>Audio</b>MP3 WAV FLAC AAC OGG Opus …</span>
+            <span><b>Video</b>MP4 MOV MKV WebM AVI GIF …</span>
+            <span><b lang="en">Documents</b><b lang="de">Dokumente</b>PDF DOCX ODT RTF TXT HTML MD EPUB</span>
+            <span><b lang="en">Archives</b><b lang="de">Archive</b>ZIP 7z TAR.GZ TAR.XZ TAR.ZST</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="p-dev" role="tabpanel" hidden>
+        <div>
+          <h3 lang="en">Git, terminal and editor built in</h3><h3 lang="de">Git, Terminal und Editor eingebaut</h3>
+          <p lang="en">Changed files are marked, the branch sits in the toolbar and a terminal opens right in the folder. Code is shown with syntax colours for around 200 languages – and you can edit it.</p>
+          <p lang="de">Geänderte Dateien sind markiert, der Zweig steht in der Leiste, ein Terminal öffnet sich direkt im Ordner. Code wird mit Syntaxfarben für rund 200 Sprachen angezeigt und lässt sich bearbeiten.</p>
+          <ul class="checks" lang="en"><li>Git status per file, switch branches, browse commits</li><li>Terminal with completion (PowerShell, cmd, Bash)</li><li>Open in VS Code, Cursor, Zed and more with a right-click</li></ul>
+          <ul class="checks" lang="de"><li>Git-Status je Datei, Zweig wechseln, Commits ansehen</li><li>Terminal mit Vervollständigung (PowerShell, cmd, Bash)</li><li>Öffnen in VS Code, Cursor, Zed und Co. per Rechtsklick</li></ul>
+        </div>
+        <figure class="shot framed"><img src="img/projekt.webp" alt="Project folder with Git markers" width="1440" height="900" loading="lazy"></figure>
+      </div>
+
+      <div class="panel" id="p-icons" role="tabpanel" hidden>
+        <div>
+          <h3 lang="en">Folder icons that match the content</h3><h3 lang="de">Ordner-Icons, die zum Inhalt passen</h3>
+          <p lang="en">When you change a folder icon, Foldex first suggests icons that fit what's inside – pictures, code, Git, music, documents. Plus over a thousand symbols from three icon themes, colours or your own image.</p>
+          <p lang="de">Beim Ändern eines Ordner-Icons schlägt Foldex zuerst Vorlagen vor, die zum Inhalt passen – Bilder, Code, Git, Musik, Dokumente. Dazu über tausend Symbole aus drei Icon-Themes, Farben oder ein eigenes Bild.</p>
+        </div>
+        <figure class="shot framed"><img src="img/icons.webp" alt="Changing a folder icon with suggestions" width="1440" height="900" loading="lazy"></figure>
+      </div>
+
+      <div class="panel" id="p-media" role="tabpanel" hidden>
+        <div>
+          <h3 lang="en">Many images at once</h3><h3 lang="de">Viele Bilder auf einmal</h3>
+          <p lang="en">Select images, right-click, <em>Edit images</em>: resize, change format, remove the background, upscale. Runs in the background with progress – the originals stay untouched.</p>
+          <p lang="de">Bilder markieren, Rechtsklick, <em>Bilder bearbeiten</em>: Größe ändern, Format umwandeln, Hintergrund entfernen, hochskalieren. Läuft im Hintergrund mit Fortschritt – die Originale bleiben unberührt.</p>
+          <ul class="checks" lang="en"><li>Transcribe audio to <code>.txt</code>, subtitles for videos as <code>.srt</code></li><li>Trim video &amp; audio straight from the preview</li><li>Image editor with AI: cut out, colourise, retouch</li></ul>
+          <ul class="checks" lang="de"><li>Audio in <code>.txt</code> umwandeln, Untertitel für Videos als <code>.srt</code></li><li>Video &amp; Audio direkt aus der Vorschau kürzen</li><li>Bildeditor mit KI: freistellen, kolorieren, retuschieren</li></ul>
+        </div>
+        <figure class="shot framed"><img src="img/stapel.webp" alt="Editing several images" width="1440" height="900" loading="lazy"></figure>
+      </div>
+
+      <div class="panel" id="p-updates" role="tabpanel" hidden>
+        <div>
+          <h3 lang="en">Updates with one click</h3><h3 lang="de">Updates mit einem Klick</h3>
+          <p lang="en">Foldex checks for a new version once a day. One click downloads the latest installer, updates silently and restarts Foldex – settings, history and models stay. Your installed version is always shown in the settings.</p>
+          <p lang="de">Foldex schaut einmal am Tag nach einer neuen Version. Ein Klick lädt den neuesten Installer, aktualisiert still und startet Foldex neu – Einstellungen, Verlauf und Modelle bleiben. Die installierte Version steht immer in den Einstellungen.</p>
+        </div>
+        <figure class="shot framed"><img src="img/updates.webp" alt="Settings: updates" width="1440" height="900" loading="lazy"></figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Schnellansicht ── -->
+  <section id="quicklook">
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="kicker"><span lang="en">Quick Look</span><span lang="de">Schnellansicht</span></span>
+        <h2 class="display" lang="en">Press space.<br><span class="blue">See everything.</span></h2>
+        <h2 class="display" lang="de">Leertaste drücken.<br><span class="blue">Alles sehen.</span></h2>
+        <p lang="en">Code, Office, 3D models, fonts, videos, PDFs and archives – without opening another app.</p>
+        <p lang="de">Code, Office, 3D-Modelle, Schriften, Videos, PDFs und Archive – ohne ein weiteres Programm zu öffnen.</p>
+      </div>
+      <div class="viewer reveal">
+        <div class="vtabs" role="tablist" aria-label="File types">
+          <button class="vtab" role="tab" aria-selected="true" data-img="img/code.webp" data-alt="Source code with syntax colours"><span class="ic"><svg class="i"><use href="#i-code"/></svg></span><b>Code</b><small><span lang="en">Syntax colours, line numbers, smooth even for huge files</span><span lang="de">Syntaxfarben, Zeilennummern, auch riesige Dateien flüssig</span></small></button>
+          <button class="vtab" role="tab" aria-selected="false" data-img="img/office.webp" data-alt="Word document in Quick Look"><span class="ic"><svg class="i"><use href="#i-file"/></svg></span><b>Office</b><small><span lang="en">Word, Excel, PowerPoint, LibreOffice, RTF and EPUB as readable text</span><span lang="de">Word, Excel, PowerPoint, LibreOffice, RTF und EPUB als lesbarer Text</span></small></button>
+          <button class="vtab" role="tab" aria-selected="false" data-img="img/modell.webp" data-alt="3D model in Quick Look"><span class="ic"><svg class="i"><use href="#i-cube"/></svg></span><b><span lang="en">3D models</span><span lang="de">3D-Modelle</span></b><small><span lang="en">OBJ, STL, GLB and glTF with light and shadow</span><span lang="de">OBJ, STL, GLB und glTF mit Licht und Schatten</span></small></button>
+          <button class="vtab" role="tab" aria-selected="false" data-img="img/schrift.webp" data-alt="Font specimen"><span class="ic"><svg class="i"><use href="#i-type"/></svg></span><b><span lang="en">Fonts</span><span lang="de">Schriften</span></b><small><span lang="en">TTF, OTF and TTC as a specimen in several sizes</span><span lang="de">TTF, OTF und TTC als Schriftmuster in mehreren Größen</span></small></button>
+          <button class="vtab" role="tab" aria-selected="false" data-img="img/video.webp" data-alt="Video with subtitles"><span class="ic"><svg class="i"><use href="#i-film"/></svg></span><b>Video &amp; Audio</b><small><span lang="en">Player with subtitles, picture-in-picture and waveform</span><span lang="de">Player mit Untertiteln, Bild-in-Bild und Wellenform</span></small></button>
+        </div>
+        <div class="vpanel" role="tabpanel">
+          <figure class="shot framed"><img id="vimg" src="img/code.webp" alt="Source code with syntax colours" width="1440" height="900" loading="lazy"></figure>
+          <p class="vcap" id="vcap"></p>
         </div>
       </div>
     </div>
   </section>
 
-  <section id="quicklook">
-    <span class="kicker"><span lang="en">Quick Look</span><span lang="de">Schnellansicht</span></span>
-    <h2 lang="en">Quick Look for almost everything</h2>
-    <h2 lang="de">Schnellansicht für fast alles</h2>
-    <p class="intro" lang="en">Press the space bar – and the file is there. Without opening another app.</p>
-    <p class="intro" lang="de">Leertaste drücken – und die Datei ist da. Ohne ein weiteres Programm zu öffnen.</p>
-    <div class="viewer reveal">
-      <div class="vtabs" role="tablist" aria-label="File types">
-        <button class="vtab" role="tab" aria-selected="true" data-img="img/code.webp" data-alt="Source code with syntax colours"><span class="ic"><svg class="i"><use href="#i-code"/></svg></span><b>Code</b><small><span lang="en">Syntax colours, line numbers, smooth even for huge files</span><span lang="de">Syntaxfarben, Zeilennummern, auch riesige Dateien flüssig</span></small></button>
-        <button class="vtab" role="tab" aria-selected="false" data-img="img/office.webp" data-alt="Word document in Quick Look"><span class="ic"><svg class="i"><use href="#i-file"/></svg></span><b>Office</b><small><span lang="en">Word, Excel, PowerPoint, LibreOffice, RTF and EPUB as readable text</span><span lang="de">Word, Excel, PowerPoint, LibreOffice, RTF und EPUB als lesbarer Text</span></small></button>
-        <button class="vtab" role="tab" aria-selected="false" data-img="img/modell.webp" data-alt="3D model in Quick Look"><span class="ic"><svg class="i"><use href="#i-cube"/></svg></span><b><span lang="en">3D models</span><span lang="de">3D-Modelle</span></b><small><span lang="en">OBJ, STL, GLB and glTF with light and shadow</span><span lang="de">OBJ, STL, GLB und glTF mit Licht und Schatten</span></small></button>
-        <button class="vtab" role="tab" aria-selected="false" data-img="img/schrift.webp" data-alt="Font specimen"><span class="ic"><svg class="i"><use href="#i-type"/></svg></span><b><span lang="en">Fonts</span><span lang="de">Schriften</span></b><small><span lang="en">TTF, OTF and TTC as a specimen in several sizes</span><span lang="de">TTF, OTF und TTC als Schriftmuster in mehreren Größen</span></small></button>
-        <button class="vtab" role="tab" aria-selected="false" data-img="img/video.webp" data-alt="Video with subtitles"><span class="ic"><svg class="i"><use href="#i-film"/></svg></span><b>Video &amp; Audio</b><small><span lang="en">Player with subtitles, picture-in-picture and waveform</span><span lang="de">Player mit Untertiteln, Bild-in-Bild und Wellenform</span></small></button>
-      </div>
-      <div class="vpanel" role="tabpanel">
-        <figure class="shot"><img id="vimg" src="img/code.webp" alt="Source code with syntax colours" width="1440" height="900" loading="lazy"></figure>
-        <p class="vcap" id="vcap"></p>
-      </div>
-    </div>
-    <div class="grid reveal" style="margin-top:28px">
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-file"/></svg></span>PDF</h4><p lang="en">View pages and copy text – even from scans via OCR.</p><p lang="de">Seiten ansehen, Text kopieren – auch aus Scans per Texterkennung.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-image"/></svg></span><span lang="en">Images</span><span lang="de">Bilder</span></h4><p lang="en">Photos and graphics instantly large, with zoom and image info.</p><p lang="de">Fotos und Grafiken sofort groß, mit Zoom und Bildinfos.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-archive"/></svg></span><span lang="en">Archives</span><span lang="de">Archive</span></h4><p lang="en">Look inside ZIP, 7z and RAR without extracting.</p><p lang="de">In ZIP, 7z und RAR hineinsehen, ohne zu entpacken.</p></div>
-    </div>
-  </section>
-
+  <!-- ── KI ── -->
   <section id="ai">
-    <span class="kicker"><span lang="en">Artificial intelligence</span><span lang="de">Künstliche Intelligenz</span></span>
-    <h2 lang="en">AI that stays with you</h2>
-    <h2 lang="de">KI, die bei dir bleibt</h2>
-    <p class="intro" lang="en">Foldex works with Claude, OpenAI and other services – or fully local with your own models. Files, photos and recordings only leave your PC if you want them to.</p>
-    <p class="intro" lang="de">Foldex arbeitet mit Claude, OpenAI und anderen Diensten – oder komplett lokal mit eigenen Modellen. Dateien, Fotos und Aufnahmen verlassen den PC nur, wenn du es willst.</p>
-    <div class="feature reveal">
-      <div class="text">
-        <div class="tag"><span lang="en">Content search</span><span lang="de">Inhaltssuche</span></div>
-        <h3 lang="en">“Find the invoice from the electronics store”</h3>
-        <h3 lang="de">„Finde die Rechnung von Media Markt“</h3>
-        <p lang="en">Content search reads PDFs, documents and images (with OCR) and explains every hit: matched terms, date, amount and the spot in the text.</p>
-        <p lang="de">Die Inhaltssuche liest PDFs, Dokumente und Bilder (mit Texterkennung) und erklärt bei jedem Treffer, warum er passt: gefundene Begriffe, Datum, Betrag und die Stelle im Text.</p>
-        <ul class="checks" lang="en">
-          <li>Works on scanned PDFs and photos of receipts too</li>
-          <li>Recognised text is cached – the second search is instant</li>
-          <li>Runs entirely on your PC</li>
-        </ul>
-        <ul class="checks" lang="de">
-          <li>Auch gescannte PDFs und Fotos von Belegen</li>
-          <li>Erkannter Text wird zwischengespeichert – die zweite Suche ist sofort fertig</li>
-          <li>Läuft komplett auf deinem PC</li>
-        </ul>
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="kicker"><span lang="en">Artificial intelligence</span><span lang="de">Künstliche Intelligenz</span></span>
+        <h2 class="display" lang="en">AI that works<br><span class="blue">on your PC.</span></h2>
+        <h2 class="display" lang="de">KI, die bei dir<br><span class="blue">auf dem PC bleibt.</span></h2>
+        <p lang="en">Use Claude, OpenAI and other services – or run your own models locally. Files, photos and recordings only leave your PC if you want them to.</p>
+        <p lang="de">Claude, OpenAI und andere Dienste nutzen – oder eigene Modelle lokal ausführen. Dateien, Fotos und Aufnahmen verlassen den PC nur, wenn du es willst.</p>
       </div>
-      <figure class="shot"><img src="img/suche.webp" alt="Content search with explanations" width="1440" height="900" loading="lazy"></figure>
-    </div>
-    <div class="feature rev reveal">
-      <div class="text">
-        <div class="tag"><span lang="en">Image generation</span><span lang="de">Bilder erzeugen</span></div>
-        <h3 lang="en">Create images – with style presets</h3>
-        <h3 lang="de">Bilder malen – mit Stil-Vorlagen</h3>
-        <p lang="en">Image mode generates pictures locally with models like SD-Turbo or FLUX. Style chips such as <em>Photo</em>, <em>Anime</em>, <em>Oil painting</em>, <em>Logo</em> or <em>Pixel art</em> extend the prompt, including a matching negative prompt.</p>
-        <p lang="de">Im Bild-Modus entstehen Bilder lokal mit Modellen wie SD-Turbo oder FLUX. Stil-Chips wie <em>Foto</em>, <em>Anime</em>, <em>Ölgemälde</em>, <em>Logo</em> oder <em>Pixel-Art</em> ergänzen den Prompt samt passendem negativen Prompt.</p>
+      <div class="search-cols reveal" style="margin-bottom:16px">
+        <figure class="shot framed"><img src="img/bildki.webp" alt="Image mode with style presets" width="1440" height="900" loading="lazy"></figure>
+        <div class="skills" aria-label="Example shortcuts">
+          <div class="skill"><code>/aufräumen</code><span><span lang="en">Tidy a folder: subfolders by type, date or project</span><span lang="de">Ordner sortieren: Unterordner nach Art, Datum oder Projekt</span></span></div>
+          <div class="skill"><code>/duplikate</code><span><span lang="en">Find duplicate files</span><span lang="de">Doppelte Dateien finden</span></span></div>
+          <div class="skill"><code>/commit</code><span><span lang="en">Commit message from your changes</span><span lang="de">Commit-Nachricht aus den Änderungen</span></span></div>
+          <div class="skill"><code>/review</code><span><span lang="en">Code review: bugs, risks, improvements</span><span lang="de">Code-Review: Fehler, Risiken, Verbesserungen</span></span></div>
+          <div class="skill"><code>/korrigieren</code><span><span lang="en">Fix spelling and grammar</span><span lang="de">Rechtschreibung und Grammatik verbessern</span></span></div>
+          <div class="skill"><code>/csv</code><span><span lang="en">Analyse CSV or Excel</span><span lang="de">CSV oder Excel auswerten</span></span></div>
+        </div>
       </div>
-      <figure class="shot"><img src="img/bildki.webp" alt="Image mode with style presets" width="1440" height="900" loading="lazy"></figure>
-    </div>
-    <div class="feature reveal">
-      <div class="text">
-        <div class="tag"><span lang="en">Shortcuts</span><span lang="de">Kurzbefehle</span></div>
-        <h3 lang="en">Over 50 skills behind a slash</h3>
-        <h3 lang="de">Über 50 Skills mit einem Schrägstrich</h3>
-        <p lang="en">Type <code>/</code> in the chat and pick a shortcut – each one stands for a carefully written prompt. Add your own in a small JSON file.</p>
-        <p lang="de">Im Chat <code>/</code> tippen und einen Kurzbefehl wählen – jeder steht für einen ausgefeilten Prompt. Eigene Kurzbefehle legst du in einer kleinen JSON-Datei an.</p>
+      <div class="grid3 reveal">
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-bot"/></svg></span><span lang="en">Agents</span><span lang="de">Agenten</span></h4><p lang="en">Claude Code, Codex and Gemini CLI right in the folder – with approval for every change and undo.</p><p lang="de">Claude Code, Codex und Gemini CLI direkt im Ordner – mit Freigabe für jede Änderung und Rückgängig.</p></div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-cpu"/></svg></span><span lang="en">Local models</span><span lang="de">Lokale Modelle</span></h4><p lang="en">Download and run text and image models (SD-Turbo, FLUX …) that fit your graphics card and RAM.</p><p lang="de">Text- und Bildmodelle (SD-Turbo, FLUX …) laden und ausführen, passend zu Grafikkarte und RAM.</p></div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-mic"/></svg></span><span lang="en">Voice input</span><span lang="de">Spracheingabe</span></h4><p lang="en">Dictate with Whisper, locally. No audio leaves your PC.</p><p lang="de">Diktieren mit Whisper, lokal. Kein Ton verlässt den PC.</p></div>
       </div>
-      <div class="skills" aria-label="Example shortcuts">
-        <div class="skill"><code>/aufräumen</code><span><span lang="en">Tidy a folder: subfolders by type, date or project</span><span lang="de">Ordner sortieren: Unterordner nach Art, Datum oder Projekt</span></span><small><span lang="en">Files</span><span lang="de">Dateien</span></small></div>
-        <div class="skill"><code>/commit</code><span><span lang="en">Commit message from your changes</span><span lang="de">Commit-Nachricht aus den Änderungen</span></span><small>Code</small></div>
-        <div class="skill"><code>/erklären</code><span><span lang="en">Explain code or a file clearly</span><span lang="de">Code oder Datei verständlich erklären</span></span><small>Code</small></div>
-        <div class="skill"><code>/duplikate</code><span><span lang="en">Find duplicate files</span><span lang="de">Doppelte Dateien finden</span></span><small><span lang="en">Files</span><span lang="de">Dateien</span></small></div>
-        <div class="skill"><code>/review</code><span><span lang="en">Code review: bugs, risks, improvements</span><span lang="de">Code-Review: Fehler, Risiken, Verbesserungen</span></span><small>Code</small></div>
-        <div class="skill"><code>/korrigieren</code><span><span lang="en">Fix spelling and grammar</span><span lang="de">Rechtschreibung und Grammatik verbessern</span></span><small><span lang="en">Writing</span><span lang="de">Schreiben</span></small></div>
-        <div class="skill"><code>/email</code><span><span lang="en">Draft an email</span><span lang="de">E-Mail formulieren</span></span><small><span lang="en">Writing</span><span lang="de">Schreiben</span></small></div>
-        <div class="skill"><code>/csv</code><span><span lang="en">Analyse CSV or Excel</span><span lang="de">CSV oder Excel auswerten</span></span><small><span lang="en">Data</span><span lang="de">Daten</span></small></div>
-      </div>
-    </div>
-    <div class="grid reveal">
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-bot"/></svg></span><span lang="en">Agents</span><span lang="de">Agenten</span></h4><p lang="en">Claude Code, Codex and Gemini CLI right in the folder – with approval for every change and undo.</p><p lang="de">Claude Code, Codex und Gemini CLI direkt im Ordner – mit Freigabe für jede Änderung und Rückgängig.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-cpu"/></svg></span><span lang="en">Local models</span><span lang="de">Lokale Modelle</span></h4><p lang="en">Download and run text and image models that fit your graphics card and RAM – instead of LM Studio.</p><p lang="de">Text- und Bildmodelle laden und ausführen, passend zu Grafikkarte und RAM – statt LM Studio.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-mic"/></svg></span><span lang="en">Voice input</span><span lang="de">Spracheingabe</span></h4><p lang="en">Dictate with Whisper, locally. No audio leaves your PC.</p><p lang="de">Diktieren mit Whisper, lokal. Kein Ton verlässt den PC.</p></div>
     </div>
   </section>
 
-  <section id="media">
-    <span class="kicker"><span lang="en">Media</span><span lang="de">Medien</span></span>
-    <h2 lang="en">Images, audio and video</h2>
-    <h2 lang="de">Bilder, Audio und Video</h2>
-    <p class="intro" lang="en">What usually takes three apps, Foldex does with a right-click.</p>
-    <p class="intro" lang="de">Was sonst drei Programme braucht, erledigt Foldex per Rechtsklick.</p>
-    <div class="feature reveal">
-      <div class="text">
-        <div class="tag"><span lang="en">Batch processing</span><span lang="de">Stapelverarbeitung</span></div>
-        <h3 lang="en">Many images at once</h3>
-        <h3 lang="de">Viele Bilder auf einmal</h3>
-        <p lang="en">Select images, right-click, <em>Edit images</em>: resize, change format, remove the background, upscale. Runs in the background with progress – the originals stay untouched.</p>
-        <p lang="de">Bilder markieren, Rechtsklick, <em>Bilder bearbeiten</em>: Größe ändern, Format umwandeln, Hintergrund entfernen, hochskalieren. Läuft im Hintergrund mit Fortschritt – die Originale bleiben unberührt.</p>
+  <!-- ── Mehr ── -->
+  <section id="more">
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="kicker"><span lang="en">And more</span><span lang="de">Und mehr</span></span>
+        <h2 class="display" lang="en">Small things.<br><span class="blue">Big time savers.</span></h2>
+        <h2 class="display" lang="de">Kleine Dinge.<br><span class="blue">Viel gesparte Zeit.</span></h2>
       </div>
-      <figure class="shot"><img src="img/stapel.webp" alt="Editing several images" width="1440" height="900" loading="lazy"></figure>
-    </div>
-    <div class="feature rev reveal">
-      <div class="text">
-        <div class="tag">Whisper</div>
-        <h3 lang="en">Voice memos and subtitles</h3>
-        <h3 lang="de">Sprachnotizen und Untertitel</h3>
-        <p lang="en">Right-click an audio file → <em>Transcribe</em>, and the transcript lands next to it as <code>.txt</code>. Videos get an <code>.srt</code> file; the player shows and hides subtitles (key C).</p>
-        <p lang="de">Audio-Datei rechtsklicken → <em>In Text umwandeln</em>, und das Transkript liegt als <code>.txt</code> daneben. Bei Videos entsteht eine <code>.srt</code>-Datei; der Player blendet die Untertitel ein und aus (Taste C).</p>
+      <div class="grid3 reveal">
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-cloud"/></svg></span><span lang="en">Cloud drives</span><span lang="de">Cloud-Laufwerke</span></h4><p lang="en">Google Drive, OneDrive, iCloud, Dropbox and more as a drive – with live sync and a cloud recycle bin.</p><p lang="de">Google Drive, OneDrive, iCloud, Dropbox und mehr als Laufwerk – mit Live-Abgleich und Cloud-Papierkorb.</p></div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-share"/></svg></span><span lang="en">Share</span><span lang="de">Teilen</span></h4><p lang="en">To phones on your Wi-Fi via LocalSend, to WhatsApp or as a link – no detours.</p><p lang="de">An Handys im WLAN per LocalSend, an WhatsApp oder per Link – ohne Umweg.</p></div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-archive"/></svg></span><span lang="en">Archives</span><span lang="de">Archive</span></h4><p lang="en">Open, extract and create ZIP, 7z, RAR, TAR, GZ, XZ and ZST.</p><p lang="de">ZIP, 7z, RAR, TAR, GZ, XZ, ZST öffnen, entpacken und packen.</p></div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-printer"/></svg></span><span lang="en">Printing</span><span lang="de">Drucken</span></h4><p lang="en">Print PDFs and images with live preview, page selection and black &amp; white.</p><p lang="de">PDFs und Bilder drucken, mit Live-Vorschau, Seitenauswahl und Schwarz-Weiß.</p></div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-file"/></svg></span><span lang="en">PDF tools</span><span lang="de">PDF-Werkzeuge</span></h4><p lang="en">View pages, copy text (with OCR too), turn documents into PDF.</p><p lang="de">Seiten ansehen, Text kopieren (auch per Texterkennung), Dokumente in PDF umwandeln.</p></div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-home"/></svg></span><span lang="en">Start page</span><span lang="de">Startseite</span></h4><p lang="en">Quick access, drives, cloud and your own wallpapers at a glance.</p><p lang="de">Schnellzugriff, Laufwerke, Cloud und eigene Hintergrundbilder auf einen Blick.</p></div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-palette"/></svg></span><span lang="en">Themes &amp; icons</span><span lang="de">Themes &amp; Icons</span></h4><p lang="en">Light, dark and many colour themes; Material, Catppuccin and VS Code icons.</p><p lang="de">Hell, dunkel und viele Farbthemen; Material-, Catppuccin- und VS-Code-Icons.</p></div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-keyboard"/></svg></span><span lang="en">Keyboard shortcuts</span><span lang="de">Tastenkürzel</span></h4><p lang="en">Every command can get its own key – freely assignable, with conflict check.</p><p lang="de">Jeder Befehl mit eigener Taste – frei belegbar, mit Konfliktprüfung.</p></div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-git"/></svg></span>Git</h4><p lang="en">Status per file, branches and commits right in the file list.</p><p lang="de">Status je Datei, Zweige und Commits direkt in der Dateiliste.</p></div>
       </div>
-      <figure class="shot"><img src="img/video.webp" alt="Video with subtitles" width="1440" height="900" loading="lazy"></figure>
-    </div>
-    <div class="grid reveal">
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-brush"/></svg></span><span lang="en">Image editor with AI</span><span lang="de">Bildeditor mit KI</span></h4><p lang="en">Cut out, select objects, colourise, upscale and retouch – locally.</p><p lang="de">Freistellen, Objekte auswählen, Kolorieren, Hochskalieren und Retuschieren – lokal.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-scissors"/></svg></span><span lang="en">Cut video &amp; audio</span><span lang="de">Video &amp; Audio schneiden</span></h4><p lang="en">Trim, export clips and adjust volume straight from the preview.</p><p lang="de">Kürzen, Ausschnitte exportieren, Lautstärke anpassen, direkt aus der Vorschau.</p></div>
-      <div class="card hl"><h4><span class="ic"><svg class="i"><use href="#i-convert"/></svg></span><span lang="en">Convert</span><span lang="de">Konvertieren</span></h4><p lang="en">Images, audio, video, documents and archives – by renaming or with a right-click.</p><p lang="de">Bilder, Audio, Video, Dokumente und Archive – per Umbenennen oder Rechtsklick.</p></div>
+
+      <div class="head reveal" style="margin-top:96px">
+        <h2 class="display" lang="en">Foldex vs.<br><span class="blue">Windows Explorer.</span></h2>
+        <h2 class="display" lang="de">Foldex und der<br><span class="blue">Windows-Explorer.</span></h2>
+      </div>
+      <div class="table-scroll reveal">
+        <table class="compare">
+          <thead><tr><th><span lang="en">Feature</span><span lang="de">Funktion</span></th><th>Foldex</th><th>Explorer</th></tr></thead>
+          <tbody>
+            <tr><td><span lang="en">Index search across all drives while typing</span><span lang="de">Index-Suche über alle Laufwerke beim Tippen</span></td><td class="y">✓</td><td class="n">–</td></tr>
+            <tr><td><span lang="en">Content search in PDFs and photos with OCR</span><span lang="de">Inhaltssuche in PDFs und Fotos mit Texterkennung</span></td><td class="y">✓</td><td class="n">–</td></tr>
+            <tr><td><span lang="en">Convert by changing the extension</span><span lang="de">Konvertieren durch Ändern der Endung</span></td><td class="y">✓</td><td class="n">–</td></tr>
+            <tr><td><span lang="en">Folder sizes in the list</span><span lang="de">Ordnergrößen in der Liste</span></td><td class="y">✓</td><td class="n">–</td></tr>
+            <tr><td><span lang="en">Quick Look with space bar (code, 3D, fonts …)</span><span lang="de">Schnellansicht mit Leertaste (Code, 3D, Schriften …)</span></td><td class="y">✓</td><td class="n">–</td></tr>
+            <tr><td><span lang="en">Split view in one window</span><span lang="de">Geteilte Ansicht in einem Fenster</span></td><td class="y">✓</td><td class="n">–</td></tr>
+            <tr><td><span lang="en">Git status and terminal in the folder</span><span lang="de">Git-Status und Terminal im Ordner</span></td><td class="y">✓</td><td class="n">–</td></tr>
+            <tr><td>Tabs</td><td class="y">✓</td><td class="y">✓</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </section>
 
-  <section id="features">
-    <span class="kicker"><span lang="en">Features</span><span lang="de">Funktionen</span></span>
-    <h2 lang="en">And a lot more</h2>
-    <h2 lang="de">Und noch viel mehr</h2>
-    <p class="intro" lang="en">Small and big helpers that save time every day.</p>
-    <p class="intro" lang="de">Kleine und große Helfer, die im Alltag Zeit sparen.</p>
-    <div class="grid reveal">
-      <div class="card hl"><h4><span class="ic"><svg class="i"><use href="#i-pencil"/></svg></span><span lang="en">Rename to convert</span><span lang="de">Per Endung konvertieren</span></h4><p lang="en"><code>.heic</code> → <code>.jpg</code>, <code>.wav</code> → <code>.mp3</code>, <code>.docx</code> → <code>.pdf</code>: just change the extension.</p><p lang="de"><code>.heic</code> → <code>.jpg</code>, <code>.wav</code> → <code>.mp3</code>, <code>.docx</code> → <code>.pdf</code>: einfach die Endung ändern.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-cloud"/></svg></span><span lang="en">Cloud drives</span><span lang="de">Cloud-Laufwerke</span></h4><p lang="en">Google Drive, OneDrive, iCloud, Dropbox and more as a drive – with live sync and a cloud recycle bin.</p><p lang="de">Google Drive, OneDrive, iCloud, Dropbox und mehr als Laufwerk – mit Live-Abgleich und Cloud-Papierkorb.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-share"/></svg></span><span lang="en">Share</span><span lang="de">Teilen</span></h4><p lang="en">To phones on your Wi-Fi via LocalSend, to WhatsApp or as a link – no detours.</p><p lang="de">An Handys im WLAN per LocalSend, an WhatsApp oder per Link – ohne Umweg.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-archive"/></svg></span><span lang="en">Archives</span><span lang="de">Archive</span></h4><p lang="en">Open, extract and create ZIP, 7z, RAR, TAR, GZ, XZ and ZST.</p><p lang="de">ZIP, 7z, RAR, TAR, GZ, XZ, ZST öffnen, entpacken und packen.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-printer"/></svg></span><span lang="en">Printing</span><span lang="de">Drucken</span></h4><p lang="en">Print PDFs and images with live preview, page selection and black &amp; white.</p><p lang="de">PDFs und Bilder drucken, mit Live-Vorschau, Seitenauswahl und Schwarz-Weiß.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-file"/></svg></span><span lang="en">PDF tools</span><span lang="de">PDF-Werkzeuge</span></h4><p lang="en">View pages, copy text (with OCR too), turn documents into PDF.</p><p lang="de">Seiten ansehen, Text kopieren (auch per Texterkennung), Dokumente in PDF umwandeln.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-home"/></svg></span><span lang="en">Start page</span><span lang="de">Startseite</span></h4><p lang="en">Quick access, drives, cloud and your own wallpapers at a glance.</p><p lang="de">Schnellzugriff, Laufwerke, Cloud und eigene Hintergrundbilder auf einen Blick.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-palette"/></svg></span><span lang="en">Themes &amp; icons</span><span lang="de">Themes &amp; Icons</span></h4><p lang="en">Light, dark and many colour themes; Material, Catppuccin and VS Code icons.</p><p lang="de">Hell, dunkel und viele Farbthemen; Material-, Catppuccin- und VS-Code-Icons.</p></div>
-      <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-keyboard"/></svg></span><span lang="en">Keyboard shortcuts</span><span lang="de">Tastenkürzel</span></h4><p lang="en">Every command can get its own key – freely assignable, with conflict check.</p><p lang="de">Jeder Befehl mit eigener Taste – frei belegbar, mit Konfliktprüfung.</p></div>
-    </div>
-    <div class="feature reveal" style="margin-top:64px">
-      <div class="text">
-        <div class="tag"><span lang="en">Always up to date</span><span lang="de">Immer aktuell</span></div>
-        <h3 lang="en">Updates with one click</h3>
-        <h3 lang="de">Updates mit einem Klick</h3>
-        <p lang="en">Foldex checks for a new version once a day. One click downloads the latest installer, updates silently and restarts Foldex – settings, history and models stay.</p>
-        <p lang="de">Foldex schaut einmal am Tag nach einer neuen Version. Ein Klick lädt den neuesten Installer, aktualisiert still und startet Foldex neu – Einstellungen, Verlauf und Modelle bleiben erhalten.</p>
-      </div>
-      <figure class="shot"><img src="img/updates.webp" alt="Settings: updates" width="1440" height="900" loading="lazy"></figure>
-    </div>
-
-    <h3 style="font-size:24px;margin:8px 0 16px"><span lang="en">Foldex vs. Windows Explorer</span><span lang="de">Foldex und der Windows-Explorer im Vergleich</span></h3>
-    <div class="table-scroll reveal">
-      <table class="compare">
-        <thead><tr><th><span lang="en">Feature</span><span lang="de">Funktion</span></th><th>Foldex</th><th>Explorer</th></tr></thead>
-        <tbody>
-          <tr><td><span lang="en">Convert by changing the extension</span><span lang="de">Konvertieren durch Ändern der Endung</span></td><td class="y">✓</td><td class="n">–</td></tr>
-          <tr><td><span lang="en">Folder sizes in the list</span><span lang="de">Ordnergrößen in der Liste</span></td><td class="y">✓</td><td class="n">–</td></tr>
-          <tr><td><span lang="en">Split view in one window</span><span lang="de">Geteilte Ansicht in einem Fenster</span></td><td class="y">✓</td><td class="n">–</td></tr>
-          <tr><td><span lang="en">Quick Look with space bar (code, 3D, fonts …)</span><span lang="de">Schnellansicht mit Leertaste (Code, 3D, Schriften …)</span></td><td class="y">✓</td><td class="n">–</td></tr>
-          <tr><td><span lang="en">Content search in PDFs and photos with OCR</span><span lang="de">Inhaltssuche in PDFs und Fotos mit Texterkennung</span></td><td class="y">✓</td><td class="n">–</td></tr>
-          <tr><td><span lang="en">Git status and terminal in the folder</span><span lang="de">Git-Status und Terminal im Ordner</span></td><td class="y">✓</td><td class="n">–</td></tr>
-          <tr><td><span lang="en">Undo for file operations</span><span lang="de">Rückgängig für Dateiaktionen</span></td><td class="y">✓</td><td class="y">✓</td></tr>
-          <tr><td>Tabs</td><td class="y">✓</td><td class="y">✓</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section id="start">
-    <span class="kicker"><span lang="en">Get started</span><span lang="de">Loslegen</span></span>
-    <h2 lang="en">Ready in a minute</h2>
-    <h2 lang="de">In einer Minute startklar</h2>
-    <p class="intro" lang="en">No account, no admin rights, no bundled extras.</p>
-    <p class="intro" lang="de">Kein Konto, keine Administratorrechte, keine Beigaben.</p>
-    <div class="steps reveal">
-      <div class="step"><h4 lang="en">Download the installer</h4><h4 lang="de">Installer laden</h4><p lang="en">One file for Windows. If there is a newer version on GitHub, the installer fetches it automatically.</p><p lang="de">Eine Datei für Windows. Gibt es schon eine neuere Version, holt der Installer sie automatisch.</p></div>
-      <div class="step"><h4 lang="en">Set up</h4><h4 lang="de">Einrichten</h4><p lang="en">Foldex is installed just for your user – pick a folder, shortcuts and AI components.</p><p lang="de">Foldex wird nur für deinen Benutzer installiert – Ordner, Verknüpfungen und KI-Komponenten wählst du selbst.</p></div>
-      <div class="step"><h4 lang="en">Open a folder</h4><h4 lang="de">Ordner öffnen</h4><p lang="en">Start Foldex from the Start menu – quick access, drives and cloud are waiting on the start page.</p><p lang="de">Foldex im Startmenü öffnen – Schnellzugriff, Laufwerke und Cloud warten auf der Startseite.</p></div>
-    </div>
-  </section>
-
-  <div class="download reveal" id="download">
-    <img src="img/logo.png" alt="">
-    <h2 lang="en">Download Foldex</h2>
-    <h2 lang="de">Foldex herunterladen</h2>
-    <p lang="en">The installer sets up Foldex for your user – without admin rights. If GitHub already has a newer version, it downloads the latest one automatically.</p>
-    <p lang="de">Der Installer richtet Foldex für deinen Benutzer ein – ohne Administratorrechte. Gibt es auf GitHub schon eine neuere Version, lädt er automatisch die neueste.</p>
-    <div class="cta">
-      <a class="btn" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe"><svg class="i"><use href="#i-download"/></svg>
-        <span lang="en">Installer for Windows</span><span lang="de">Installer für Windows</span></a>
-      <a class="btn ghost" href="https://github.com/xJetouss/Foldex/raw/main/dist/foldex.exe"><span lang="en">Portable EXE</span><span lang="de">Portable EXE</span></a>
-    </div>
-    <p class="req" lang="en">Version 0.9.3 · Windows, 64-bit · <a class="plain" href="https://github.com/xJetouss/Foldex/releases">All versions</a></p>
-    <p class="req" lang="de">Version 0.9.3 · Windows, 64 Bit · <a class="plain" href="https://github.com/xJetouss/Foldex/releases">Alle Versionen</a></p>
-  </div>
-
+  <!-- ── Fragen ── -->
   <section id="faq">
-    <span class="kicker"><span lang="en">Questions</span><span lang="de">Fragen</span></span>
-    <h2 lang="en">Frequently asked questions</h2>
-    <h2 lang="de">Häufige Fragen</h2>
-    <p class="intro" lang="en">Answered in short.</p>
-    <p class="intro" lang="de">Kurz beantwortet.</p>
-    <div class="faq">
-      <div class="faq-col">
-        <details>
-          <summary><span lang="en">What does Foldex cost?</span><span lang="de">Was kostet Foldex?</span></summary>
-          <p lang="en">Nothing. Foldex is free, needs no account and its source code is on GitHub.</p>
-          <p lang="de">Nichts. Foldex ist kostenlos, braucht kein Konto und der Quelltext liegt auf GitHub.</p>
-        </details>
-        <details>
-          <summary><span lang="en">Do I need admin rights?</span><span lang="de">Brauche ich Administratorrechte?</span></summary>
-          <p lang="en">No. The installer sets up Foldex for your user only.</p>
-          <p lang="de">Nein. Der Installer richtet Foldex nur für deinen Benutzer ein.</p>
-        </details>
-        <details>
-          <summary><span lang="en">Can I use Foldex without installing it?</span><span lang="de">Geht Foldex auch ohne Installation?</span></summary>
-          <p lang="en">Yes. Download the portable <code>foldex.exe</code> and start it directly. The installer adds Start menu shortcuts and automatic updates.</p>
-          <p lang="de">Ja. Die portable <code>foldex.exe</code> laden und direkt starten. Der Installer ergänzt Startmenü-Verknüpfungen und automatische Updates.</p>
-        </details>
-        <details>
-          <summary><span lang="en">How does converting by renaming work?</span><span lang="de">Wie funktioniert Konvertieren per Umbenennen?</span></summary>
-          <p lang="en">Rename a file (F2) and type a different extension, e.g. <code>.heic</code> → <code>.jpg</code>. Foldex converts the file in the background and moves the original to the recycle bin, so undo brings it back. If the new extension belongs to a different kind of file, Foldex asks first.</p>
-          <p lang="de">Datei umbenennen (F2) und eine andere Endung eintippen, z. B. <code>.heic</code> → <code>.jpg</code>. Foldex wandelt die Datei im Hintergrund um und legt das Original in den Papierkorb – Rückgängig holt es zurück. Gehört die neue Endung zu einer ganz anderen Dateiart, fragt Foldex vorher nach.</p>
-        </details>
-        <details>
-          <summary><span lang="en">Which formats can I convert?</span><span lang="de">Welche Formate lassen sich umwandeln?</span></summary>
-          <p lang="en">Images (JPG, PNG, WebP, AVIF, GIF, BMP, TIFF, ICO, SVG, PDF and more), documents (PDF, DOCX, ODT, RTF, TXT, HTML, Markdown, EPUB) and archives (ZIP, 7z, TAR variants). Audio and video use ffmpeg, if it is installed.</p>
-          <p lang="de">Bilder (JPG, PNG, WebP, AVIF, GIF, BMP, TIFF, ICO, SVG, PDF und mehr), Dokumente (PDF, DOCX, ODT, RTF, TXT, HTML, Markdown, EPUB) und Archive (ZIP, 7z, TAR-Varianten). Audio und Video laufen über ffmpeg, sofern es installiert ist.</p>
-        </details>
-        <details>
-          <summary><span lang="en">Does Foldex replace Windows Explorer?</span><span lang="de">Ersetzt Foldex den Windows-Explorer?</span></summary>
-          <p lang="en">No, it runs alongside it. Windows Explorer keeps working as usual – use whichever you like.</p>
-          <p lang="de">Nein, es läuft daneben. Der Windows-Explorer bleibt wie gewohnt – du nutzt, was du magst.</p>
-        </details>
+    <div class="wrap">
+      <div class="head reveal">
+        <h2 class="display" lang="en">Questions?<br><span class="blue">Answers.</span></h2>
+        <h2 class="display" lang="de">Fragen?<br><span class="blue">Antworten.</span></h2>
       </div>
-      <div class="faq-col">
-        <details>
-          <summary><span lang="en">Are my files sent to the cloud?</span><span lang="de">Werden meine Dateien in die Cloud geschickt?</span></summary>
-          <p lang="en">Only if you want them to. Content search, OCR, voice input and local models run entirely on your PC. Online services like Claude or OpenAI are only used if you set them up.</p>
-          <p lang="de">Nur, wenn du es willst. Inhaltssuche, Texterkennung, Spracheingabe und lokale Modelle laufen komplett auf deinem PC. Online-Dienste wie Claude oder OpenAI nutzt Foldex nur, wenn du sie einrichtest.</p>
-        </details>
-        <details>
-          <summary><span lang="en">Which AI services are supported?</span><span lang="de">Welche KI-Dienste werden unterstützt?</span></summary>
-          <p lang="en">Claude, OpenAI and other services with your own key – or local text and image models that Foldex downloads and runs for you. Agents like Claude Code, Codex and Gemini CLI work directly in the folder.</p>
-          <p lang="de">Claude, OpenAI und weitere Dienste mit eigenem Schlüssel – oder lokale Text- und Bildmodelle, die Foldex für dich lädt und ausführt. Agenten wie Claude Code, Codex und Gemini CLI arbeiten direkt im Ordner.</p>
-        </details>
-        <details>
-          <summary><span lang="en">How do I get updates?</span><span lang="de">Wie bekomme ich Updates?</span></summary>
-          <p lang="en">Foldex checks for a new version once a day. One click installs it; settings, history and models are kept.</p>
-          <p lang="de">Foldex sucht einmal am Tag nach einer neuen Version. Ein Klick installiert sie, Einstellungen, Verlauf und Modelle bleiben erhalten.</p>
-        </details>
-        <details>
-          <summary><span lang="en">How do I uninstall Foldex?</span><span lang="de">Wie deinstalliere ich Foldex?</span></summary>
-          <p lang="en">Via “Apps &amp; features” in Windows Settings, like any other program.</p>
-          <p lang="de">Über „Apps &amp; Features“ in den Windows-Einstellungen, wie jedes andere Programm.</p>
-        </details>
-        <details>
-          <summary><span lang="en">I found a bug or have an idea – where do I send it?</span><span lang="de">Fehler gefunden oder eine Idee – wohin damit?</span></summary>
-          <p lang="en">Open an issue on <a href="https://github.com/xJetouss/Foldex/issues">GitHub</a> or write an email to <a href="mailto:jetouss@tssnt.dev">jetouss@tssnt.dev</a>.</p>
-          <p lang="de">Als Issue auf <a href="https://github.com/xJetouss/Foldex/issues">GitHub</a> oder per E-Mail an <a href="mailto:jetouss@tssnt.dev">jetouss@tssnt.dev</a>.</p>
-        </details>
+      <div class="faq">
+        <div class="faq-col">
+          <details><summary><span lang="en">What does Foldex cost?</span><span lang="de">Was kostet Foldex?</span></summary>
+            <p lang="en">Nothing. Foldex is free, needs no account and its source code is on GitHub.</p><p lang="de">Nichts. Foldex ist kostenlos, braucht kein Konto und der Quelltext liegt auf GitHub.</p></details>
+          <details><summary><span lang="en">How fast is the search?</span><span lang="de">Wie schnell ist die Suche?</span></summary>
+            <p lang="en">Foldex builds an index of your drives in the background. After that, name searches across all drives answer while you type. Content searches read the files and cache recognised text, so the second search is much faster.</p><p lang="de">Foldex legt im Hintergrund einen Index deiner Laufwerke an. Danach antwortet die Namenssuche über alle Laufwerke, während du tippst. Die Inhaltssuche liest die Dateien und merkt sich erkannten Text – die zweite Suche ist viel schneller.</p></details>
+          <details><summary><span lang="en">Can I search inside files?</span><span lang="de">Kann ich in Dateien suchen?</span></summary>
+            <p lang="en">Yes. Type <code>inhalt:word</code> (or <code>content:</code>) in the search bar, with quotes for several words. The AI content search reads PDFs, documents and images with OCR and explains each hit.</p><p lang="de">Ja. In der Suchleiste <code>inhalt:wort</code> (oder <code>content:</code>) eingeben, für mehrere Wörter mit Anführungszeichen. Die KI-Inhaltssuche liest PDFs, Dokumente und Bilder mit Texterkennung und erklärt jeden Treffer.</p></details>
+          <details><summary><span lang="en">Do I need admin rights?</span><span lang="de">Brauche ich Administratorrechte?</span></summary>
+            <p lang="en">No. The installer sets up Foldex for your user only.</p><p lang="de">Nein. Der Installer richtet Foldex nur für deinen Benutzer ein.</p></details>
+          <details><summary><span lang="en">Can I use Foldex without installing it?</span><span lang="de">Geht Foldex auch ohne Installation?</span></summary>
+            <p lang="en">Yes. Download the portable <code>foldex.exe</code> and start it directly. The installer adds Start menu shortcuts and automatic updates.</p><p lang="de">Ja. Die portable <code>foldex.exe</code> laden und direkt starten. Der Installer ergänzt Startmenü-Verknüpfungen und automatische Updates.</p></details>
+          <details><summary><span lang="en">How does converting by renaming work?</span><span lang="de">Wie funktioniert Konvertieren per Umbenennen?</span></summary>
+            <p lang="en">Rename a file (F2) and type a different extension, e.g. <code>.heic</code> → <code>.jpg</code>. Foldex converts it in the background and moves the original to the recycle bin, so undo brings it back. Audio and video use ffmpeg, if it is installed.</p><p lang="de">Datei umbenennen (F2) und eine andere Endung eintippen, z. B. <code>.heic</code> → <code>.jpg</code>. Foldex wandelt sie im Hintergrund um und legt das Original in den Papierkorb – Rückgängig holt es zurück. Audio und Video laufen über ffmpeg, sofern es installiert ist.</p></details>
+        </div>
+        <div class="faq-col">
+          <details><summary><span lang="en">Are my files sent to the cloud?</span><span lang="de">Werden meine Dateien in die Cloud geschickt?</span></summary>
+            <p lang="en">Only if you want them to. Search, OCR, voice input and local models run entirely on your PC. Online services like Claude or OpenAI are only used if you set them up.</p><p lang="de">Nur, wenn du es willst. Suche, Texterkennung, Spracheingabe und lokale Modelle laufen komplett auf deinem PC. Online-Dienste wie Claude oder OpenAI nutzt Foldex nur, wenn du sie einrichtest.</p></details>
+          <details><summary><span lang="en">Does Foldex replace Windows Explorer?</span><span lang="de">Ersetzt Foldex den Windows-Explorer?</span></summary>
+            <p lang="en">No, it runs alongside it. Windows Explorer keeps working as usual – use whichever you like.</p><p lang="de">Nein, es läuft daneben. Der Windows-Explorer bleibt wie gewohnt – du nutzt, was du magst.</p></details>
+          <details><summary><span lang="en">How do I send files to my phone?</span><span lang="de">Wie schicke ich Dateien aufs Handy?</span></summary>
+            <p lang="en">Right-click → <em>Share</em> → LocalSend. Foldex finds the phones in your Wi-Fi and sends directly – LocalSend just has to be open on the phone.</p><p lang="de">Rechtsklick → <em>Teilen</em> → LocalSend. Foldex findet die Handys im WLAN und sendet direkt – auf dem Handy muss nur LocalSend geöffnet sein.</p></details>
+          <details><summary><span lang="en">How do I get updates – and which version do I have?</span><span lang="de">Wie bekomme ich Updates – und welche Version habe ich?</span></summary>
+            <p lang="en">Foldex checks for a new version once a day; one click installs it. Your installed version is shown at the top of the settings.</p><p lang="de">Foldex sucht einmal am Tag nach einer neuen Version, ein Klick installiert sie. Die installierte Version steht oben in den Einstellungen.</p></details>
+          <details><summary><span lang="en">How do I uninstall Foldex?</span><span lang="de">Wie deinstalliere ich Foldex?</span></summary>
+            <p lang="en">Via “Apps &amp; features” in Windows Settings, or in Foldex under Settings → Uninstall.</p><p lang="de">Über „Apps &amp; Features“ in den Windows-Einstellungen oder in Foldex unter Einstellungen → Deinstallieren.</p></details>
+          <details><summary><span lang="en">I found a bug or have an idea – where do I send it?</span><span lang="de">Fehler gefunden oder eine Idee – wohin damit?</span></summary>
+            <p lang="en">Open an issue on <a href="https://github.com/xJetouss/Foldex/issues">GitHub</a> or write an email to <a href="mailto:jetouss@tssnt.dev">jetouss@tssnt.dev</a>.</p><p lang="de">Als Issue auf <a href="https://github.com/xJetouss/Foldex/issues">GitHub</a> oder per E-Mail an <a href="mailto:jetouss@tssnt.dev">jetouss@tssnt.dev</a>.</p></details>
+        </div>
+      </div>
+
+      <!-- ── Abschluss ── -->
+      <div class="final reveal" id="download">
+        <img src="img/logo.png" alt="">
+        <h2 class="display" lang="en">Free, and ready in a minute.<br><span class="blue">Get Foldex.</span></h2>
+        <h2 class="display" lang="de">Kostenlos und in einer Minute startklar.<br><span class="blue">Hol dir Foldex.</span></h2>
+        <p lang="en">The installer sets up Foldex for your user – without admin rights – and always fetches the newest version from GitHub.</p>
+        <p lang="de">Der Installer richtet Foldex für deinen Benutzer ein – ohne Administratorrechte – und holt immer die neueste Version von GitHub.</p>
+        <div class="cta">
+          <a class="btn big" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe"><svg class="i"><use href="#i-download"/></svg><span lang="en">Installer for Windows</span><span lang="de">Installer für Windows</span></a>
+          <a class="btn ghost big" href="https://github.com/xJetouss/Foldex/raw/main/dist/foldex.exe">Portable EXE</a>
+        </div>
+        <p class="req">Version 0.9.3 · Windows, 64-bit · <a href="https://github.com/xJetouss/Foldex/releases"><span lang="en">All versions</span><span lang="de">Alle Versionen</span></a></p>
+      </div>
+
+      <div class="contact reveal">
+        <div>
+          <h3 lang="en">Questions, feedback, ideas?</h3><h3 lang="de">Fragen, Feedback, Ideen?</h3>
+          <p lang="en">Write me – I read every message.</p><p lang="de">Schreib mir – ich lese jede Nachricht.</p>
+        </div>
+        <a class="btn ghost" href="mailto:jetouss@tssnt.dev"><svg class="i"><use href="#i-mail"/></svg>jetouss@tssnt.dev</a>
       </div>
     </div>
   </section>
-
-  <div class="contact reveal">
-    <div>
-      <h3 lang="en">Questions, feedback, ideas?</h3>
-      <h3 lang="de">Fragen, Feedback, Ideen?</h3>
-      <p lang="en">Write me – I read every message.</p>
-      <p lang="de">Schreib mir – ich lese jede Nachricht.</p>
-    </div>
-    <a class="btn ghost" href="mailto:jetouss@tssnt.dev"><svg class="i"><use href="#i-mail"/></svg>jetouss@tssnt.dev</a>
-  </div>
 </main>
 
 <footer>
@@ -815,29 +713,23 @@ footer a:hover { color: var(--text); }
 <script>
   const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const root = document.documentElement;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // Sprache (Standard Englisch)
   const META = {
-    en: ['Foldex – the file explorer that simply does more', 'Foldex: a fast, memory-friendly file explorer for Windows – tabs, Quick Look for almost any file, convert by renaming, local AI, cloud drives, terminal and Git.'],
-    de: ['Foldex – der Datei-Explorer, der einfach mehr kann', 'Foldex: schneller, RAM-sparsamer Datei-Explorer für Windows – mit Tabs, Schnellansicht für fast alles, Konvertieren per Umbenennen, lokaler KI, Cloud, Terminal und Git.'],
+    en: ['Foldex – the file explorer built for speed', 'Foldex: a fast file explorer for Windows – instant search across all drives, content search with OCR, Quick Look for almost any file, convert by renaming, local AI, terminal and Git.'],
+    de: ['Foldex – der Datei-Explorer, der einfach mehr kann', 'Foldex: schneller Datei-Explorer für Windows – Sofortsuche über alle Laufwerke, Inhaltssuche mit Texterkennung, Schnellansicht für fast alles, Konvertieren per Umbenennen, lokale KI, Terminal und Git.'],
   };
-  const applyLang = () => {
+  function applyLang() {
     const m = META[root.lang] || META.en;
     document.title = m[0];
     $('meta[name="description"]').content = m[1];
-    syncCap();
-  };
+    syncCap(); rnShow(); searchRestart();
+  }
   $('#lang').addEventListener('click', () => {
     root.lang = root.lang === 'de' ? 'en' : 'de';
     try { localStorage.setItem('foldex-lang', root.lang); } catch (e) {}
     applyLang();
-  });
-
-  // Hell / Dunkel
-  $('#theme').addEventListener('click', () => {
-    const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-    root.dataset.theme = dark ? 'light' : 'dark';
-    try { localStorage.setItem('foldex-theme', root.dataset.theme); } catch (e) {}
   });
 
   // Menü auf schmalen Bildschirmen
@@ -853,27 +745,98 @@ footer a:hover { color: var(--text); }
   }), { rootMargin: '-45% 0px -50% 0px' });
   links.forEach(a => { const s = $(a.getAttribute('href')); if (s) spy.observe(s); });
 
+  // Reiter im Schaufenster
+  const ftabs = $$('.tab');
+  ftabs.forEach((t, i) => {
+    t.addEventListener('click', () => {
+      ftabs.forEach(o => { o.setAttribute('aria-selected', o === t); $('#' + o.dataset.panel).hidden = o !== t; });
+    });
+    t.addEventListener('keydown', e => {
+      const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (d) { e.preventDefault(); const n = ftabs[(i + d + ftabs.length) % ftabs.length]; n.focus(); n.click(); }
+    });
+  });
+
   // Schnellansicht-Reiter
-  const vimg = $('#vimg'), vcap = $('#vcap'), tabs = $$('.vtab');
+  const vimg = $('#vimg'), vcap = $('#vcap'), vtabs = $$('.vtab');
   function syncCap() {
-    const t = tabs.find(x => x.getAttribute('aria-selected') === 'true');
+    const t = vtabs.find(x => x.getAttribute('aria-selected') === 'true');
     if (t) vcap.innerHTML = $('small', t).innerHTML;
   }
-  tabs.forEach((t, i) => {
+  vtabs.forEach((t, i) => {
     t.addEventListener('click', () => {
-      tabs.forEach(o => o.setAttribute('aria-selected', o === t));
+      vtabs.forEach(o => o.setAttribute('aria-selected', o === t));
       vimg.style.opacity = .35;
       const pre = new Image();
       pre.onload = pre.onerror = () => { vimg.src = t.dataset.img; vimg.alt = t.dataset.alt; vimg.style.opacity = 1; };
       pre.src = t.dataset.img;
       syncCap();
-      t.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     });
     t.addEventListener('keydown', e => {
       const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
-      if (d) { e.preventDefault(); const n = tabs[(i + d + tabs.length) % tabs.length]; n.focus(); n.click(); }
+      if (d) { e.preventDefault(); const n = vtabs[(i + d + vtabs.length) % vtabs.length]; n.focus(); n.click(); }
     });
   });
+
+  // Such-Beispiel: Anfragen werden getippt, Treffer erscheinen
+  const ICON = { pdf: 'i-file', img: 'i-image', dir: 'i-folder', code: 'i-code', doc: 'i-file' };
+  const SEARCH = [
+    { q: ['rechnung ', ['ext:pdf', 'k']], hl: 'rechnung', res: [
+      ['pdf', 'Rechnung_Media_Markt_2026.pdf', 'D:\\Belege\\2026', 'name'],
+      ['pdf', 'Rechnung Stromanbieter März.pdf', 'C:\\Users\\Jan\\Dokumente\\Haushalt', 'name'],
+      ['pdf', 'rechnung-hosting-0412.pdf', 'E:\\Firma\\Buchhaltung', 'name'],
+      ['pdf', 'Rechnungen 2025 Übersicht.pdf', 'C:\\Users\\Jan\\Desktop', 'name'] ] },
+    { q: [['inhalt:', 'k'], '"Media Markt"'], hl: '', res: [
+      ['img', 'IMG_20260314_Beleg.jpg', 'C:\\Users\\Jan\\Bilder\\Handy', 'ocr'],
+      ['pdf', 'Garantie Kaffeemaschine.pdf', 'D:\\Belege\\Garantie', 'text'],
+      ['doc', 'Einkaufsliste.docx', 'C:\\Users\\Jan\\Dokumente', 'text'] ] },
+    { q: ['urlaub ', ['is:dir', 'k'], ' ', ['!alt', 'k']], hl: 'urlaub', res: [
+      ['dir', 'Urlaub Italien 2025', 'E:\\Fotos', 'dir'],
+      ['dir', 'Urlaub Norwegen', 'E:\\Fotos\\2024', 'dir'],
+      ['dir', 'urlaub-planung', 'C:\\Users\\Jan\\Dokumente', 'dir'] ] },
+    { q: ['projekte/rust ', ['*.toml', 'k']], hl: '', res: [
+      ['code', 'Cargo.toml', 'E:\\Projekte\\rust\\foldex', 'path'],
+      ['code', 'Cargo.toml', 'E:\\Projekte\\rust\\spiel', 'path'],
+      ['code', 'rustfmt.toml', 'E:\\Projekte\\rust\\foldex', 'path'] ] },
+  ];
+  const WHY = {
+    en: { name: 'name', ocr: 'found in photo (OCR)', text: 'found in text', dir: 'folder', path: 'path' },
+    de: { name: 'Name', ocr: 'im Foto erkannt', text: 'im Text gefunden', dir: 'Ordner', path: 'Pfad' },
+  };
+  const sq = $('#sq'), sres = $('#sres'), scount = $('#scount');
+  let sIdx = 0, sTimer = null;
+  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const qHtml = (parts, upto) => {
+    let out = '', left = upto;
+    for (const p of parts) {
+      const [txt, cls] = Array.isArray(p) ? p : [p, ''];
+      const t = txt.slice(0, Math.max(0, left)); left -= txt.length;
+      out += cls ? `<span class="${cls}">${esc(t)}</span>` : esc(t);
+      if (left <= 0) break;
+    }
+    return out + '<span class="caret"></span>';
+  };
+  const showResults = s => {
+    const why = WHY[root.lang] || WHY.en;
+    sres.innerHTML = s.res.map(([ic, n, p, w]) => {
+      const name = s.hl ? esc(n).replace(new RegExp('(' + s.hl + ')', 'i'), '<mark>$1</mark>') : esc(n);
+      return `<div class="res hide"><span class="fi"><svg class="i"><use href="#${ICON[ic]}"/></svg></span><div style="min-width:0"><div class="n">${name}</div><div class="p">${esc(p)}</div></div><span class="why">${why[w]}</span></div>`;
+    }).join('');
+    $$('.res', sres).forEach((r, k) => setTimeout(() => r.classList.remove('hide'), reduced ? 0 : 60 * k));
+    scount.textContent = root.lang === 'de' ? `${s.res.length} Treffer` : `${s.res.length} results`;
+  };
+  function searchRun() {
+    const s = SEARCH[sIdx], total = s.q.reduce((a, p) => a + (Array.isArray(p) ? p[0] : p).length, 0);
+    if (reduced) { sq.innerHTML = qHtml(s.q, total); showResults(s); return; }
+    let k = 0; sres.innerHTML = ''; scount.textContent = '';
+    const step = () => {
+      sq.innerHTML = qHtml(s.q, k);
+      if (k < total) { k++; sTimer = setTimeout(step, 70); }
+      else { showResults(s); sTimer = setTimeout(() => { sIdx = (sIdx + 1) % SEARCH.length; searchRun(); }, 3400); }
+    };
+    step();
+  }
+  function searchRestart() { clearTimeout(sTimer); searchRun(); }
 
   // Umbenennen-Beispiel: wechselt alle paar Sekunden
   const RN = [
@@ -885,21 +848,21 @@ footer a:hover { color: var(--text); }
   ];
   let rn = 0;
   const rnFrom = $('#rn-from'), rnTo = $('#rn-to'), rnDone = $('#rn-done');
-  const rnShow = () => {
+  function rnShow() {
     const [en, de, a, b, ic] = RN[rn], base = root.lang === 'de' ? de : en;
     $('.base', rnFrom).textContent = base; $('.ext', rnFrom).textContent = a;
     $('.base', rnTo).textContent = base; $('.ext', rnTo).textContent = b;
-    $('#rn-fmt-en').textContent = $('#rn-fmt-de').textContent = b.toUpperCase();
+    $$('.rn-fmt').forEach(e => e.textContent = b.toUpperCase());
     $('use', rnFrom.parentElement).setAttribute('href', '#' + ic);
-  };
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  }
+  if (!reduced) {
     setInterval(() => {
       [rnFrom, rnTo, rnDone].forEach(e => e.style.opacity = 0);
       setTimeout(() => { rn = (rn + 1) % RN.length; rnShow(); [rnFrom, rnTo, rnDone].forEach(e => e.style.opacity = 1); }, 260);
     }, 3200);
   }
 
-  // Bildschirmfotos groß ansehen (mit Pfeiltasten und Wischen blättern)
+  // Bildschirmfotos groß ansehen (Pfeiltasten und Wischen)
   const lb = $('#lb'), lbi = $('img', lb), cap = $('.cap', lb);
   let shots = [], cur = 0;
   const show = i => { cur = (i + shots.length) % shots.length; lbi.src = shots[cur].src; lbi.alt = shots[cur].alt; cap.textContent = shots[cur].alt; };
@@ -929,7 +892,6 @@ footer a:hover { color: var(--text); }
   $$('.reveal').forEach(el => io.observe(el));
 
   applyLang();
-  rnShow();
 </script>
 </body>
 </html>

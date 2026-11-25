@@ -4,7 +4,7 @@
 //
 // Aufruf:
 //   Foldex-Installer.exe                    Assistent (Installieren bzw. Aktualisieren)
-//   Foldex-Installer.exe /silent [/dir=…] [/ai=id,id] [/nodesktop] [/nocontext] [/launch]
+//   Foldex-Installer.exe /silent [/dir=…] [/ai=id,id] [/nodesktop] [/launch]
 //   /noupdate: nicht auf GitHub nach einer neueren Version sehen (sonst lädt der Assistent sie bei Bedarf)
 //   Foldex-Deinstallation.exe /uninstall [/silent] [/purge]   (/purge: auch Einstellungen und KI-Modelle)
 
@@ -214,7 +214,7 @@ static class Online
 /// Befehlszeile
 class Opts
 {
-    public bool Silent, Uninstall, Purge, NoDesktop, NoContext, Launch, NoUpdate;
+    public bool Silent, Uninstall, Purge, NoDesktop, Launch, NoUpdate;
     public string Dir, Ai, UninstallRun;
     /// nur zum Testen: Verknüpfungen und Registry-Einträge in einen Testbereich statt ins echte System
     public string Sandbox;
@@ -230,7 +230,6 @@ class Opts
             else if (l == "/uninstall") { o.Uninstall = true; }
             else if (l == "/purge") { o.Purge = true; }
             else if (l == "/nodesktop") { o.NoDesktop = true; }
-            else if (l == "/nocontext") { o.NoContext = true; }
             else if (l == "/launch") { o.Launch = true; }
             else if (l == "/noupdate") { o.NoUpdate = true; }
             else if (l.StartsWith("/dir=")) { o.Dir = a.Substring(5).Trim('"'); }
@@ -409,7 +408,7 @@ static class Setup
     static string DesktopLink() { return Path.Combine(Sandbox != null ? Path.Combine(Sandbox, "Desktop") : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), App + ".lnk"); }
 
     /// Schritte der Installation; `report(Anteil 0..1, Text)`
-    public static void Install(string dir, bool desktop, bool startMenu, bool context, string version, Action<double, string> report)
+    public static void Install(string dir, bool desktop, bool startMenu, string version, Action<double, string> report)
     {
         report(0.02, "Laufendes Foldex wird beendet …");
         KillRunning(dir);
@@ -448,39 +447,17 @@ static class Setup
             k.SetValue("NoModify", 1, RegistryValueKind.DWord);
             k.SetValue("NoRepair", 1, RegistryValueKind.DWord);
         }
-        report(0.82, "Explorer-Kontextmenü wird eingerichtet …");
-        if (context) { ContextMenu(exe); } else { RemoveContextMenu(); }
+        // „Mit Foldex öffnen“ gibt es nicht mehr: Einträge älterer Versionen entfernen
+        RemoveContextMenu();
         report(0.95, "Foldex ist installiert");
     }
 
-    /// „Mit Foldex öffnen“ bei Rechtsklick auf Ordner und in Ordnern (Hintergrund)
-    static void ContextMenu(string exe)
-    {
-        string[] keys = ContextKeys;
-        string[] args = { "%1", "%V", "%1" };
-        for (int i = 0; i < keys.Length; i++)
-        {
-            using (RegistryKey k = Registry.CurrentUser.CreateSubKey(keys[i]))
-            {
-                k.SetValue("", "Mit Foldex öffnen");
-                k.SetValue("Icon", exe + ",0");
-                using (RegistryKey c = k.CreateSubKey("command"))
-                {
-                    c.SetValue("", "\"" + exe + "\" --open \"" + args[i] + "\"");
-                }
-            }
-        }
-    }
-
+    /// Einträge „Mit Foldex öffnen“ älterer Versionen im Explorer-Kontextmenü entfernen
     static void RemoveContextMenu()
     {
         foreach (string k in ContextKeys) { try { Registry.CurrentUser.DeleteSubKeyTree(k); } catch (Exception) { } }
     }
 
-    public static bool HasContextMenu()
-    {
-        using (RegistryKey k = Registry.CurrentUser.OpenSubKey(ContextKeys[0])) { return k != null; }
-    }
 
     static void TryDelete(string f) { try { if (File.Exists(f)) { File.Delete(f); } } catch (Exception) { } }
 
@@ -518,7 +495,7 @@ static class Setup
     public static int SilentInstall(Opts o)
     {
         string dir = o.Dir ?? DefaultDir();
-        Install(dir, !o.NoDesktop, true, !o.NoContext, Ver.Value, delegate (double f, string t) { });
+        Install(dir, !o.NoDesktop, true, Ver.Value, delegate (double f, string t) { });
         if (!string.IsNullOrEmpty(o.Ai))
         {
             List<string> ids = new List<string>(o.Ai.Split(','));
@@ -604,7 +581,7 @@ class UninstallDialog : Form
         ClientSize = new Size(500, 210);
         Icon = Art.AppIcon();
         Label l = new Label();
-        l.Text = "Foldex wird von diesem PC entfernt: Programm, Verknüpfungen, Kontextmenü und der Eintrag unter „Apps“.";
+        l.Text = "Foldex wird von diesem PC entfernt: Programm, Verknüpfungen und der Eintrag unter „Apps“.";
         l.SetBounds(20, 20, 460, 44);
         purge = new CheckBox();
         purge.Text = "Auch Einstellungen, KI-Modelle, Cloud-Anmeldungen und den Suchindex löschen";
@@ -643,7 +620,7 @@ class Wizard : Form
     Panel[] pages = new Panel[7];
     TextBox dirBox;
     Label spaceLabel, aiTotal, summary, progLabel, doneLabel, doneTitle;
-    CheckBox cDesktop, cStart, cContext, cLaunch, cLaunchDone;
+    CheckBox cDesktop, cStart, cLaunch, cLaunchDone;
     TreeView aiTree, edTree;
     Panel banner;
     ProgressBar prog;
@@ -786,9 +763,8 @@ class Wizard : Form
         Panel p2 = pages[2] = NewPage();
         cStart = Check("Eintrag im Startmenü", true, 0);
         cDesktop = Check("Verknüpfung auf dem Desktop", !opts.NoDesktop, 34);
-        cContext = Check("„Mit Foldex öffnen“ beim Rechtsklick auf Ordner und Laufwerke im Explorer", !opts.NoContext || Setup.HasContextMenu(), 68);
-        cLaunch = Check("Foldex nach der Installation starten", true, 102);
-        p2.Controls.AddRange(new Control[] { cStart, cDesktop, cContext, cLaunch });
+        cLaunch = Check("Foldex nach der Installation starten", true, 68);
+        p2.Controls.AddRange(new Control[] { cStart, cDesktop, cLaunch });
 
         // 3 Komponenten: Reiter „Agents“ (Sprachmodelle) und „Editor“ (Bild, Audio … für die Editoren)
         Panel p3 = pages[3] = NewPage();
@@ -1039,7 +1015,6 @@ class Wizard : Form
         s.AppendLine("Optionen:");
         if (cStart.Checked) { s.AppendLine("      Eintrag im Startmenü"); }
         if (cDesktop.Checked) { s.AppendLine("      Verknüpfung auf dem Desktop"); }
-        if (cContext.Checked) { s.AppendLine("      „Mit Foldex öffnen“ im Explorer"); }
         s.AppendLine("      Eintrag unter „Apps“ (zum Deinstallieren)");
         s.AppendLine();
         List<AiComp> ai = ChosenAi();
@@ -1060,7 +1035,7 @@ class Wizard : Form
         installing = true;
         Go(5);
         string dir = dirBox.Text.Trim();
-        bool desktop = cDesktop.Checked, start = cStart.Checked, context = cContext.Checked;
+        bool desktop = cDesktop.Checked, start = cStart.Checked;
         List<AiComp> ai = ChosenAi();
         Thread t = new Thread(delegate ()
         {
@@ -1069,7 +1044,7 @@ class Wizard : Form
             {
                 double share = ai.Count > 0 ? 0.15 : 1.0; // mit KI: Programm 15 %, KI 85 %
                 string last = null;
-                Setup.Install(dir, desktop, start, context, Ver.Value, delegate (double f, string txt)
+                Setup.Install(dir, desktop, start, Ver.Value, delegate (double f, string txt)
                 {
                     BeginInvoke((Action)delegate
                     {

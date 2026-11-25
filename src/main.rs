@@ -3813,7 +3813,7 @@ fn update_ui(ui: &mut egui::Ui, th: Theme, up: &update::Updater, quit: &Arc<Atom
                 update::State::Checking => "Suche nach Updates …".to_string(),
                 update::State::UpToDate => format!("Foldex {} ist die neueste Version.", update::current()),
                 update::State::Failed(e) => e.clone(),
-                _ => format!("Installiert: Foldex {}", update::current()),
+                _ => "Noch nicht nach Updates gesucht.".to_string(),
             };
             ui.label(egui::RichText::new(msg).color(th.sub));
             if ui.add_enabled(!matches!(s, update::State::Checking), egui::Button::new("Nach Updates suchen")).clicked() {
@@ -10873,24 +10873,95 @@ impl App {
         let name = dir.file_name().map_or_else(|| dir.display().to_string(), |n| n.to_string_lossy().into_owned());
         let icons = &mut self.icons;
         let group = &mut self.folder_icon_group;
-        egui::Window::new(format!("Icon für „{name}“"))
-            .open(&mut open)
+        let w = (ctx.screen_rect().width() - 40.0).clamp(420.0, 680.0);
+        let h = (ctx.screen_rect().height() - 60.0).clamp(360.0, 600.0);
+        if ctx.input(|i| i.key_pressed(Key::Escape)) {
+            open = false;
+        }
+        let frame = egui::Frame::window(&ctx.style())
+            .fill(th.panel)
+            .rounding(Rounding::same(12.0))
+            .stroke(Stroke::new(1.0, th.line))
+            .inner_margin(Margin::same(18.0))
+            .shadow(egui::epaint::Shadow { offset: vec2(0.0, 8.0), blur: 28.0, spread: 0.0, color: Color32::from_black_alpha(90) });
+        // eine Kachel: Symbol, Name darunter; gewählt = Akzentrahmen
+        let cell = |ui: &mut egui::Ui, icons: &mut Icons, spec: &foldericons::Spec, label: &str, sel: bool, hint: String| -> bool {
+            let (r, resp) = ui.allocate_exact_size(vec2(76.0, 78.0), Sense::click());
+            if ui.is_rect_visible(r) {
+                let hov = resp.hovered();
+                if sel || hov {
+                    ui.painter().rect(r, 10.0, if sel { th.sel } else { th.hover }, Stroke::new(if sel { 1.5 } else { 0.0 }, th.accent));
+                }
+                let ir = Rect::from_center_size(r.center() - vec2(0.0, 9.0), vec2(38.0, 38.0));
+                icons.paint_spec(ui.painter(), ir, spec);
+                let short: String = label.chars().take(11).collect();
+                ui.painter().text(pos2(r.center().x, r.bottom() - 7.0), Align2::CENTER_BOTTOM, short, FontId::proportional(11.0), if sel { th.text } else { th.sub });
+            }
+            resp.on_hover_text(hint).on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
+        };
+        egui::Window::new("folder_icon")
+            .title_bar(false)
+            .frame(frame)
             .collapsible(false)
-            .resizable(true)
-            .default_size(vec2(560.0, 480.0))
+            .resizable(false)
+            .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+            .fixed_size([w, h])
             .show(ctx, |ui| {
+                // Kopf: aktuelles Symbol, Titel, Ordnername, Schließen
                 ui.horizontal(|ui| {
-                    if ui.button("Eigenes Bild …").on_hover_text("PNG, JPEG, ICO, SVG, WebP …").clicked() {
-                        if let Some(f) = rfd::FileDialog::new().add_filter("Bild", &["png", "jpg", "jpeg", "ico", "svg", "webp", "bmp", "gif"]).pick_file() {
-                            pick = Some(Some(foldericons::Spec::Image(f)));
+                    let (r, _) = ui.allocate_exact_size(vec2(48.0, 48.0), Sense::hover());
+                    ui.painter().rect_filled(r, 12.0, th.field);
+                    let ir = r.shrink(8.0);
+                    match &cur {
+                        Some(spec) => {
+                            icons.paint_spec(ui.painter(), ir, spec);
                         }
+                        None => icons::paint_folder_color(ui.painter(), ir, 0xF4C542),
                     }
-                    if ui.add_enabled(cur.is_some(), egui::Button::new("Zurücksetzen")).on_hover_text("Wieder das normale Ordnersymbol").clicked() {
-                        pick = Some(None);
-                    }
-                    ui.add(egui::TextEdit::singleline(query).hint_text("Vorlagen suchen, z. B. images, music, git …").desired_width(ui.available_width()));
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 1.0;
+                        ui.add_space(4.0);
+                        ui.label(egui::RichText::new("Ordner-Icon ändern").size(17.0).strong());
+                        ui.add(egui::Label::new(egui::RichText::new(format!("für „{name}“")).size(12.0).color(th.sub)).truncate());
+                    });
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                        let (r, resp) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
+                        if resp.hovered() {
+                            ui.painter().circle_filled(r.center(), 15.0, th.hover);
+                        }
+                        let c = r.center();
+                        let s = Stroke::new(1.5, if resp.hovered() { th.text } else { th.sub });
+                        ui.painter().line_segment([c + vec2(-5.0, -5.0), c + vec2(5.0, 5.0)], s);
+                        ui.painter().line_segment([c + vec2(-5.0, 5.0), c + vec2(5.0, -5.0)], s);
+                        if resp.on_hover_text("Schließen (Esc)").clicked() {
+                            open = false;
+                        }
+                    });
                 });
-                ui.add_space(4.0);
+                ui.add_space(12.0);
+                // Suche und Aktionen
+                ui.horizontal(|ui| {
+                    let bw = 272.0;
+                    egui::Frame::none().fill(th.field).stroke(Stroke::new(1.0, th.line)).rounding(Rounding::same(8.0)).inner_margin(Margin::symmetric(10.0, 6.0)).show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            let (ir, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+                            ui::draw(ui.painter(), ir, Ic::Search, th.sub);
+                            ui.add(egui::TextEdit::singleline(query).frame(false).hint_text("Vorlagen suchen, z. B. music, git …").desired_width((ui.available_width() - bw).max(120.0)));
+                        });
+                    });
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.add_enabled(cur.is_some(), egui::Button::new("Zurücksetzen").min_size(vec2(100.0, 30.0))).on_hover_text("Wieder das normale Ordnersymbol").clicked() {
+                            pick = Some(None);
+                        }
+                        let own = egui::Button::new(egui::RichText::new("Eigenes Bild …").color(if th.dark { th.bg } else { Color32::WHITE })).fill(th.accent).min_size(vec2(118.0, 30.0));
+                        if ui.add(own).on_hover_text("PNG, JPEG, ICO, SVG, WebP …").clicked() {
+                            if let Some(f) = rfd::FileDialog::new().add_filter("Bild", &["png", "jpg", "jpeg", "ico", "svg", "webp", "bmp", "gif"]).pick_file() {
+                                pick = Some(Some(foldericons::Spec::Image(f)));
+                            }
+                        }
+                    });
+                });
+                ui.add_space(10.0);
                 // Vorschläge passend zum Inhalt (einmal je Ordner ermittelt)
                 static SUGGEST: std::sync::Mutex<Option<(PathBuf, Vec<String>)>> = std::sync::Mutex::new(None);
                 let sug = {
@@ -10903,47 +10974,54 @@ impl App {
                     g.as_ref().map(|x| x.1.clone()).unwrap_or_default()
                 };
                 if !sug.is_empty() && query.is_empty() {
-                    ui.label(egui::RichText::new("Vorschläge für diesen Ordner").size(12.0).strong().color(th.sub));
-                    ui.horizontal_wrapped(|ui| {
-                        ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
-                        for n in &sug {
-                            let spec = foldericons::Spec::Preset(n.clone());
-                            let (r, resp) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::click());
-                            let sel = cur.as_ref() == Some(&spec);
-                            ui.painter().rect_filled(r, 6.0, if sel { th.sel } else if resp.hovered() { th.hover } else { th.field });
-                            let ir = Rect::from_center_size(r.center() - vec2(0.0, 7.0), vec2(34.0, 34.0));
-                            icons.paint_spec(ui.painter(), ir, &spec);
-                            let label = foldericons::preset_label(n);
-                            let short: String = label.chars().take(10).collect();
-                            ui.painter().text(pos2(r.center().x, r.bottom() - 6.0), Align2::CENTER_BOTTOM, short, FontId::proportional(10.5), th.sub);
-                            if resp.on_hover_text(format!("{label} – passt zum Inhalt")).clicked() {
-                                pick = Some(Some(spec));
+                    egui::Frame::none().fill(th.field).rounding(Rounding::same(10.0)).inner_margin(Margin::same(8.0)).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.horizontal(|ui| {
+                            let (ir, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+                            ui::draw(ui.painter(), ir, Ic::Spark, th.accent);
+                            ui.label(egui::RichText::new("Passt zum Inhalt").size(12.5).strong());
+                        });
+                        ui.horizontal_wrapped(|ui| {
+                            ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
+                            for n in &sug {
+                                let spec = foldericons::Spec::Preset(n.clone());
+                                let label = foldericons::preset_label(n);
+                                if cell(ui, icons, &spec, &label, cur.as_ref() == Some(&spec), format!("{label} – passt zum Inhalt")) {
+                                    pick = Some(Some(spec));
+                                }
                             }
-                        }
+                        });
                     });
-                    ui.add_space(2.0);
+                    ui.add_space(10.0);
                 }
-                // Gruppen: Ordner/Symbole aus drei Icon-Themes und farbige Ordner
+                // Gruppen als Reiter: Ordner/Symbole aus drei Icon-Themes und farbige Ordner
                 ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
                     for (k, l) in matico::PRESET_GROUPS.iter().copied().chain([("farben", "Farben")]) {
-                        if ui.selectable_label(*group == k, l).clicked() {
+                        let on = *group == k;
+                        let b = egui::Button::new(egui::RichText::new(l).size(12.5).color(if on { if th.dark { th.bg } else { Color32::WHITE } } else { th.text }))
+                            .fill(if on { th.accent } else { th.field })
+                            .stroke(Stroke::new(1.0, if on { th.accent } else { th.line }))
+                            .rounding(Rounding::same(14.0))
+                            .min_size(vec2(0.0, 28.0));
+                        if ui.add(b).clicked() {
                             *group = k;
                         }
                     }
                 });
-                ui.separator();
+                ui.add_space(8.0);
                 let q = query.to_lowercase();
                 if *group == "farben" {
                     ui.horizontal_wrapped(|ui| {
-                        ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
+                        ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
                         for c in foldericons::COLORS {
                             let spec = foldericons::Spec::Color(*c);
-                            let (r, resp) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::click());
+                            let (r, resp) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::click());
                             let sel = cur.as_ref() == Some(&spec);
                             if sel || resp.hovered() {
-                                ui.painter().rect_filled(r, 6.0, if sel { th.sel } else { th.hover });
+                                ui.painter().rect(r, 10.0, if sel { th.sel } else { th.hover }, Stroke::new(if sel { 1.5 } else { 0.0 }, th.accent));
                             }
-                            icons::paint_folder_color(ui.painter(), Rect::from_center_size(r.center(), vec2(40.0, 40.0)), *c);
+                            icons::paint_folder_color(ui.painter(), Rect::from_center_size(r.center(), vec2(42.0, 42.0)), *c);
                             if resp.on_hover_text(format!("#{c:06X}")).clicked() {
                                 pick = Some(Some(spec));
                             }
@@ -10952,25 +11030,15 @@ impl App {
                     return;
                 }
                 let presets: Vec<String> = matico::presets(group).into_iter().filter(|n| q.is_empty() || foldericons::preset_label(n).contains(&q)).collect();
-                ui.label(egui::RichText::new(format!("{} Vorlagen", presets.len())).size(12.0).color(th.sub));
+                ui.label(egui::RichText::new(if presets.is_empty() { "Keine Vorlage gefunden".to_string() } else { format!("{} Vorlagen", presets.len()) }).size(11.5).color(th.sub));
+                ui.add_space(2.0);
                 egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                     ui.horizontal_wrapped(|ui| {
                         ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
                         for n in presets.iter().map(String::as_str) {
                             let spec = foldericons::Spec::Preset(n.to_string());
-                            let (r, resp) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::click());
-                            let sel = cur.as_ref() == Some(&spec);
-                            if sel || resp.hovered() {
-                                ui.painter().rect_filled(r, 6.0, if sel { th.sel } else { th.hover });
-                            }
-                            if ui.is_rect_visible(r) {
-                                let ir = Rect::from_center_size(r.center() - vec2(0.0, 7.0), vec2(34.0, 34.0));
-                                icons.paint_spec(ui.painter(), ir, &spec);
-                                let label = foldericons::preset_label(n);
-                                let short: String = label.chars().take(10).collect();
-                                ui.painter().text(pos2(r.center().x, r.bottom() - 6.0), Align2::CENTER_BOTTOM, short, FontId::proportional(10.5), th.sub);
-                            }
-                            if resp.on_hover_text(foldericons::preset_label(n)).clicked() {
+                            let label = foldericons::preset_label(n);
+                            if cell(ui, icons, &spec, &label, cur.as_ref() == Some(&spec), label.clone()) {
                                 pick = Some(Some(spec));
                             }
                         }
@@ -11043,6 +11111,14 @@ impl App {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new("Einstellungen").size(19.0).strong());
+                    // installierte Version immer sichtbar (Klick → Updates)
+                    let ver = egui::Button::new(egui::RichText::new(format!("Foldex {}", update::current())).size(12.0).color(th.sub))
+                        .fill(th.field)
+                        .stroke(Stroke::new(1.0, th.line))
+                        .rounding(Rounding::same(10.0));
+                    if ui.add(ver).on_hover_text("Installierte Version – Klick zeigt die Updates").clicked() {
+                        self.settings_page = "Updates".into();
+                    }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let (r, resp) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
                         if resp.hovered() {
@@ -11843,6 +11919,9 @@ impl App {
                         );
                     });
                     settings_card(ui, th, "Updates", |ui| {
+                        setting_row(ui, th, "Installierte Version", "Die Version von Foldex auf diesem PC", |ui| {
+                            ui.label(egui::RichText::new(format!("Foldex {}", update::current())).size(15.0).strong().color(th.accent));
+                        });
                         update_ui(ui, th, &self.updater, &self.update_quit, false);
                     });
                     settings_card(ui, th, "Deinstallieren", |ui| {
