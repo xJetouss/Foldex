@@ -222,6 +222,50 @@ section { padding: 120px 0 0; }
 .sgroup code { background: none; border: 0; padding: 0; color: var(--blue-2); font-size: 13px; white-space: nowrap; }
 .skill-note { text-align: center; color: var(--sub); font-size: 14.5px; margin-top: 18px; }
 
+/* Plugins */
+.plugin-cols { display: grid; grid-template-columns: 1fr 1.1fr; gap: 40px; align-items: center; }
+.plugin-cols pre { margin: 0; background: var(--input); border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line-2), 0 30px 70px -30px rgba(79,142,255,.4); padding: 20px 22px; overflow-x: auto; font: 13.5px/1.65 Consolas, "Cascadia Code", ui-monospace, monospace; color: var(--code); }
+.plugin-cols .k { color: var(--blue-2); }
+.plugin-cols .s { color: #4ade80; }
+:root[data-theme="light"] .plugin-cols .s { color: #15803d; }
+.plugin-cols .cta { margin-top: 22px; }
+
+/* Anpassen */
+.custom-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.swatches { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.swatch { width: 30px; height: 30px; border-radius: 50%; border: 0; cursor: pointer; box-shadow: inset 0 0 0 2px rgba(255,255,255,.2); transition: transform .15s ease; }
+.swatch:hover { transform: scale(1.12); }
+.swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
+.seg { display: inline-flex; gap: 4px; margin-top: 12px; background: var(--card-2); border-radius: 999px; padding: 4px; flex-wrap: wrap; }
+.seg span { font-size: 13px; padding: 5px 12px; border-radius: 999px; color: var(--sub); }
+.seg span.on { background: var(--blue); color: #fff; }
+
+/* Download mit Menü „Mehr“ */
+.dl { position: relative; display: inline-flex; }
+.dl .btn.main { border-radius: 999px 0 0 999px; padding-right: 22px; }
+.dl .btn.more { border-radius: 0 999px 999px 0; padding-left: 14px; padding-right: 18px; margin-left: 1px; }
+.dl-menu { position: absolute; top: calc(100% + 8px); left: 0; min-width: 290px; z-index: 30; background: var(--menu); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line-2), 0 20px 50px rgba(0,0,0,.35); padding: 6px; display: none; }
+.dl-menu.open { display: block; }
+.dl-menu a { display: grid; grid-template-columns: 30px 1fr; gap: 2px 10px; align-items: center; padding: 9px 10px; border-radius: 10px; color: var(--text); }
+.dl-menu a:hover { background: var(--card-2); text-decoration: none; }
+.dl-menu a svg.i { grid-row: span 2; color: var(--blue-2); width: 20px; height: 20px; justify-self: center; }
+.dl-menu a b { font-weight: 600; font-size: 14.5px; }
+.dl-menu a small { color: var(--sub); font-size: 12.5px; }
+.dl-menu a.you b::after { content: attr(data-you); margin-left: 8px; font-size: 11px; font-weight: 600; color: #fff; background: var(--blue); border-radius: 999px; padding: 1px 8px; vertical-align: 1px; }
+.dl-menu hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
+.os-note { margin-top: 12px; font-size: 13.5px; color: var(--sub); }
+
+/* Plattformen */
+.platforms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 28px; text-align: left; }
+.platform { background: rgba(255,255,255,.04); box-shadow: inset 0 0 0 1px var(--line); border-radius: 16px; padding: 18px; }
+:root[data-theme="light"] .platform { background: #fff; }
+.platform h4 { margin: 0 0 4px; font-size: 16.5px; }
+.platform p { margin: 0 0 12px; color: var(--sub); font-size: 14px; }
+.platform .btn { width: 100%; }
+.platform.you { box-shadow: inset 0 0 0 2px var(--blue), 0 18px 40px -20px rgba(79,142,255,.6); }
+.platform .you-tag { display: none; font-size: 11px; font-weight: 600; color: #fff; background: var(--blue); border-radius: 999px; padding: 1px 8px; margin-left: 6px; vertical-align: 2px; }
+.platform.you .you-tag { display: inline-block; }
+
 /* Vergleich */
 .compare { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; font-size: 15px; }
 .compare th, .compare td { padding: 14px 18px; text-align: left; border-bottom: 1px solid var(--line); }
@@ -298,7 +342,9 @@ footer a:hover { color: var(--text); }
   .stats { grid-template-columns: 1fr 1fr; }
   .stat:nth-child(3) { border-left: 0; }
   .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
-  .grid3, .skill-grid { grid-template-columns: 1fr 1fr; }
+  .grid3, .skill-grid, .custom-grid { grid-template-columns: 1fr 1fr; }
+  .plugin-cols { grid-template-columns: 1fr; gap: 28px; }
+  .platforms { grid-template-columns: 1fr; }
   .faq { grid-template-columns: 1fr; }
   .tabs { justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; margin: 0 -28px 24px; padding: 0 28px 4px; scrollbar-width: none; }
   .tabs::-webkit-scrollbar { display: none; }
@@ -318,11 +364,15 @@ footer a:hover { color: var(--text); }
   .brand { margin-right: 0; }
   .hero { padding: 40px 0 40px; }
   .hero .cta .btn { width: 100%; }
+  .hero .cta .dl { width: 100%; }
+  .hero .cta .dl .btn.main { flex: 1; width: auto; }
+  .hero .cta .dl .btn.more { width: auto; }
+  .dl-menu { left: 0; right: 0; min-width: 0; }
   .stat { padding: 22px 10px; }
   section { padding-top: 88px; }
   .head { margin-bottom: 30px; }
   .head p { font-size: 16.5px; }
-  .grid3, .skill-grid { grid-template-columns: 1fr; }
+  .grid3, .skill-grid, .custom-grid { grid-template-columns: 1fr; }
   .search-demo { padding: 12px; }
   .sbox { font-size: 14px; padding: 12px; }
   .sbox .scope { display: none; }
@@ -378,6 +428,18 @@ footer a:hover { color: var(--text); }
   <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8 12.5 3 3 5-6"/></symbol>
   <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0V8zM12 18v4"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></symbol>
+  <symbol id="i-square" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/></symbol>
+  <symbol id="i-rows" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></symbol>
+  <symbol id="i-zoom" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M11 8v6M8 11h6"/></symbol>
+  <symbol id="i-win" viewBox="0 0 24 24"><path d="M3 5.5 10.5 4.5v7H3zM12 4.3 21 3v8.5h-9zM3 12.5h7.5v7L3 18.5zM12 12.5h9V21l-9-1.3z"/></symbol>
+  <symbol id="i-linux" viewBox="0 0 24 24"><path d="M12 3c-2.2 0-3.5 1.8-3.5 4.2 0 1.6-.6 2.8-1.6 4.3-1.2 1.8-2.1 3.6-1.6 5.6.3 1.3 1.6 2.4 3.2 2.6M12 3c2.2 0 3.5 1.8 3.5 4.2 0 1.6.6 2.8 1.6 4.3 1.2 1.8 2.1 3.6 1.6 5.6-.3 1.3-1.6 2.4-3.2 2.6M9.5 19.8c.8.8 1.6 1.2 2.5 1.2s1.7-.4 2.5-1.2M10.3 8h.01M13.7 8h.01M10.5 10.5c.9.6 2.1.6 3 0"/></symbol>
+  <symbol id="i-android" viewBox="0 0 24 24"><path d="M5 10h14v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2zM5 9a7 7 0 0 1 14 0zM8 4 6.5 2M16 4l1.5-2M9.5 6.5h.01M14.5 6.5h.01M3 11v5M21 11v5M9 19v3M15 19v3"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></symbol>
   <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
@@ -393,6 +455,7 @@ footer a:hover { color: var(--text); }
       <a href="#quicklook"><span lang="en">Quick Look</span><span lang="de">Schnellansicht</span></a>
       <a href="#ai"><span lang="en">AI</span><span lang="de">KI</span></a>
       <a href="#skills">Skills</a>
+      <a href="#plugins">Plugins</a>
       <a href="#more"><span lang="en">More</span><span lang="de">Mehr</span></a>
       <a href="#faq"><span lang="en">FAQ</span><span lang="de">Fragen</span></a>
     </nav>
@@ -409,16 +472,28 @@ footer a:hover { color: var(--text); }
   <div class="hero">
     <div class="wrap grid2">
       <div>
-        <span class="badge"><b><span lang="en">New</span><span lang="de">Neu</span></b><span lang="en">Version 0.9.5 · free for Windows</span><span lang="de">Version 0.9.5 · kostenlos für Windows</span></span>
+        <span class="badge"><b><span lang="en">New</span><span lang="de">Neu</span></b><span lang="en">Plugins · Linux · Android</span><span lang="de">Plugins · Linux · Android</span></span>
         <h1 class="display" lang="en">The file explorer<br><span class="blue">built for speed.</span></h1>
         <h1 class="display" lang="de">Der Datei-Explorer,<br><span class="blue">der einfach mehr kann.</span></h1>
         <p class="lead" lang="en">Find any file on any drive as you type. Open almost every file with the space bar. Rename <code>.heic</code> to <code>.jpg</code> and it converts. Plus local AI, terminal and Git – in one fast window.</p>
         <p class="lead" lang="de">Jede Datei auf jedem Laufwerk finden, während du tippst. Fast jede Datei mit der Leertaste ansehen. <code>.heic</code> in <code>.jpg</code> umbenennen – und sie wird umgewandelt. Dazu lokale KI, Terminal und Git – in einem schnellen Fenster.</p>
         <div class="cta">
-          <a class="btn big" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe"><svg class="i"><use href="#i-download"/></svg><span lang="en">Download for Windows</span><span lang="de">Für Windows laden</span></a>
+          <div class="dl" id="dl">
+            <a class="btn big main" id="dl-main" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe"><svg class="i"><use href="#i-download"/></svg><span class="dl-label"><span lang="en">Download for Windows</span><span lang="de">Für Windows laden</span></span></a>
+            <button class="btn big more" id="dl-more" type="button" aria-haspopup="true" aria-expanded="false"><span lang="en">More</span><span lang="de">Mehr</span><svg class="i"><use href="#i-chev"/></svg></button>
+            <div class="dl-menu" id="dl-menu" role="menu">
+              <a href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe" data-os="windows"><svg class="i"><use href="#i-win"/></svg><b><span lang="en">Windows installer</span><span lang="de">Windows-Installer</span></b><small><span lang="en">Recommended · automatic updates</span><span lang="de">Empfohlen · automatische Updates</span></small></a>
+              <a href="https://github.com/xJetouss/Foldex/raw/main/dist/foldex.exe"><svg class="i"><use href="#i-box"/></svg><b><span lang="en">Windows portable</span><span lang="de">Windows portabel</span></b><small><span lang="en">foldex.exe – runs without installing</span><span lang="de">foldex.exe – läuft ohne Installation</span></small></a>
+              <a href="https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Linux-x86_64.tar.gz" data-os="linux"><svg class="i"><use href="#i-linux"/></svg><b>Linux</b><small><span lang="en">x86_64 · .tar.gz · needs GTK 3</span><span lang="de">x86_64 · .tar.gz · braucht GTK 3</span></small></a>
+              <a href="https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Android.apk" data-os="android"><svg class="i"><use href="#i-android"/></svg><b>Android <small>Beta</small></b><small><span lang="en">APK for phones and tablets</span><span lang="de">APK für Handy und Tablet</span></small></a>
+              <hr>
+              <a href="https://github.com/xJetouss/Foldex/releases"><svg class="i"><use href="#i-github"/></svg><b><span lang="en">All versions &amp; source</span><span lang="de">Alle Versionen &amp; Quelltext</span></b><small>GitHub Releases</small></a>
+            </div>
+          </div>
           <a class="btn ghost big" href="#search"><span lang="en">See the search</span><span lang="de">Suche ansehen</span></a>
         </div>
-        <div class="sub-links"><span lang="en">Free · no account · no admin rights</span><span lang="de">Kostenlos · ohne Konto · ohne Administratorrechte</span> · <a href="https://github.com/xJetouss/Foldex/releases"><span lang="en">Other versions</span><span lang="de">Andere Versionen</span></a></div>
+        <div class="os-note" id="os-note" hidden></div>
+        <div class="sub-links"><span lang="en">Free · no account · no admin rights</span><span lang="de">Kostenlos · ohne Konto · ohne Administratorrechte</span> · <span lang="en">Windows, Linux &amp; Android</span><span lang="de">Windows, Linux &amp; Android</span></div>
       </div>
       <div class="window reveal">
         <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span>Foldex</span></div>
@@ -702,6 +777,97 @@ footer a:hover { color: var(--text); }
     </div>
   </section>
 
+  <!-- ── Plugins ── -->
+  <section id="plugins">
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="kicker">Plugins</span>
+        <h2 class="display" lang="en">Your commands.<br><span class="blue">Right in the menu.</span></h2>
+        <h2 class="display" lang="de">Deine Befehle.<br><span class="blue">Direkt im Menü.</span></h2>
+        <p lang="en">A small <code>plugin.json</code> adds your own commands to the right-click menu and the command palette – run any program or script with the selected files.</p>
+        <p lang="de">Eine kleine <code>plugin.json</code> fügt dem Rechtsklick-Menü und der Befehlspalette eigene Befehle hinzu – jedes Programm oder Skript mit den markierten Dateien.</p>
+      </div>
+      <div class="plugin-cols reveal">
+        <div>
+          <ul class="checks" lang="en">
+            <li>Placeholders for files, names, extensions and the current folder</li>
+            <li>Only for certain file types, for folders or for an empty spot</li>
+            <li>Output in the status bar or a window – or just start an app</li>
+            <li>PowerShell, Python, Node, batch and shell scripts work out of the box</li>
+            <li>Turn plugins on and off in the settings, reload without restarting</li>
+          </ul>
+          <ul class="checks" lang="de">
+            <li>Platzhalter für Dateien, Namen, Endungen und den aktuellen Ordner</li>
+            <li>Nur für bestimmte Dateitypen, für Ordner oder für eine leere Stelle</li>
+            <li>Ausgabe in der Statusleiste oder im Fenster – oder einfach ein Programm starten</li>
+            <li>PowerShell-, Python-, Node-, Batch- und Shell-Skripte laufen direkt</li>
+            <li>Plugins in den Einstellungen ein- und ausschalten, ohne Neustart neu laden</li>
+          </ul>
+          <div class="cta">
+            <a class="btn" href="plugins.html"><svg class="i"><use href="#i-plug"/></svg><span lang="en">Read the plugin docs</span><span lang="de">Zur Plugin-Anleitung</span></a>
+          </div>
+        </div>
+<pre><code>{
+  <span class="k">"name"</span>: <span class="s">"Resize images"</span>,
+  <span class="k">"commands"</span>: [{
+    <span class="k">"id"</span>: <span class="s">"small"</span>,
+    <span class="k">"title"</span>: <span class="s">"Resize to 1080 px"</span>,
+    <span class="k">"extensions"</span>: [<span class="s">"jpg"</span>, <span class="s">"png"</span>],
+    <span class="k">"run"</span>: <span class="s">"magick"</span>,
+    <span class="k">"args"</span>: [<span class="s">"{file}"</span>, <span class="s">"-resize"</span>, <span class="s">"1080x1080"</span>,
+             <span class="s">"{parent}/{stem}-small.{ext}"</span>],
+    <span class="k">"refresh"</span>: true
+  }]
+}</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Anpassen ── -->
+  <section id="customize">
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="kicker"><span lang="en">Customize</span><span lang="de">Anpassen</span></span>
+        <h2 class="display" lang="en">Make it yours.<br><span class="blue">Down to the corners.</span></h2>
+        <h2 class="display" lang="de">Mach es zu deinem.<br><span class="blue">Bis in die Ecken.</span></h2>
+        <p lang="en">Size, density, corners, accent colour and font – change them in the settings and see the result instantly. Try the colours here:</p>
+        <p lang="de">Größe, Zeilenhöhe, Ecken, Akzentfarbe und Schrift – in den Einstellungen ändern und sofort sehen. Probier die Farben hier aus:</p>
+      </div>
+      <div class="custom-grid reveal">
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-palette"/></svg></span><span lang="en">Accent colour</span><span lang="de">Akzentfarbe</span></h4>
+          <p lang="en">Your own colour for selection, buttons and highlights – or the theme's.</p><p lang="de">Eigene Farbe für Auswahl, Knöpfe und Markierungen – oder die des Themes.</p>
+          <div class="swatches" id="swatches" aria-label="Accent colour">
+            <button class="swatch" style="background:#4f8eff" data-c="#4f8eff" aria-pressed="true" title="Blue"></button>
+            <button class="swatch" style="background:#22c55e" data-c="#22c55e" aria-pressed="false" title="Green"></button>
+            <button class="swatch" style="background:#f59e0b" data-c="#f59e0b" aria-pressed="false" title="Amber"></button>
+            <button class="swatch" style="background:#ef4444" data-c="#ef4444" aria-pressed="false" title="Red"></button>
+            <button class="swatch" style="background:#a855f7" data-c="#a855f7" aria-pressed="false" title="Purple"></button>
+            <button class="swatch" style="background:#ec4899" data-c="#ec4899" aria-pressed="false" title="Pink"></button>
+            <button class="swatch" style="background:#14b8a6" data-c="#14b8a6" aria-pressed="false" title="Teal"></button>
+          </div>
+        </div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-zoom"/></svg></span><span lang="en">Interface size</span><span lang="de">Größe der Oberfläche</span></h4>
+          <p lang="en">Everything bigger or smaller – text, icons and spacing.</p><p lang="de">Alles größer oder kleiner – Schrift, Symbole und Abstände.</p>
+          <div class="seg"><span>90 %</span><span class="on">100 %</span><span>110 %</span><span>125 %</span><span>150 %</span></div>
+        </div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-rows"/></svg></span><span lang="en">Row height</span><span lang="de">Zeilenhöhe</span></h4>
+          <p lang="en">Compact for many files, generous for touch screens.</p><p lang="de">Kompakt für viele Dateien, großzügig für Touchscreens.</p>
+          <div class="seg"><span lang="en">Compact</span><span lang="de">Kompakt</span><span class="on">Normal</span><span lang="en">Generous</span><span lang="de">Großzügig</span></div>
+        </div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-square"/></svg></span><span lang="en">Corners</span><span lang="de">Ecken</span></h4>
+          <p lang="en">Square, normal or round – windows, menus and buttons.</p><p lang="de">Eckig, normal oder rund – Fenster, Menüs und Knöpfe.</p>
+          <div class="seg"><span lang="en">Square</span><span lang="de">Eckig</span><span class="on">Normal</span><span lang="en">Round</span><span lang="de">Rund</span></div>
+        </div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-text"/></svg></span><span lang="en">Font</span><span lang="de">Schrift</span></h4>
+          <p lang="en">Segoe UI, Arial, Calibri, Verdana … or any TTF/OTF file you like.</p><p lang="de">Segoe UI, Arial, Calibri, Verdana … oder jede TTF/OTF-Datei, die du magst.</p>
+        </div>
+        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-sliders"/></svg></span><span lang="en">Themes, icons, toolbar</span><span lang="de">Themes, Icons, Leiste</span></h4>
+          <p lang="en">Colour themes, three icon sets, your own toolbar buttons and a key for every command.</p><p lang="de">Farbthemen, drei Icon-Sets, eigene Knöpfe in der Schnellleiste und eine Taste für jeden Befehl.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ── Mehr ── -->
   <section id="more">
     <div class="wrap">
@@ -737,6 +903,8 @@ footer a:hover { color: var(--text); }
             <tr><td><span lang="en">Quick Look with space bar (code, 3D, fonts …)</span><span lang="de">Schnellansicht mit Leertaste (Code, 3D, Schriften …)</span></td><td class="y">✓</td><td class="n">–</td></tr>
             <tr><td><span lang="en">Split view in one window</span><span lang="de">Geteilte Ansicht in einem Fenster</span></td><td class="y">✓</td><td class="n">–</td></tr>
             <tr><td><span lang="en">Git status and terminal in the folder</span><span lang="de">Git-Status und Terminal im Ordner</span></td><td class="y">✓</td><td class="n">–</td></tr>
+            <tr><td><span lang="en">Plugins for your own commands</span><span lang="de">Plugins für eigene Befehle</span></td><td class="y">✓</td><td class="n">–</td></tr>
+            <tr><td><span lang="en">Accent colour, size, corners and font</span><span lang="de">Akzentfarbe, Größe, Ecken und Schrift</span></td><td class="y">✓</td><td class="n">–</td></tr>
             <tr><td>Tabs</td><td class="y">✓</td><td class="y">✓</td></tr>
           </tbody>
         </table>
@@ -759,6 +927,8 @@ footer a:hover { color: var(--text); }
             <p lang="en">Foldex builds an index of your drives in the background. After that, name searches across all drives answer while you type. Content searches read the files and cache recognised text, so the second search is much faster.</p><p lang="de">Foldex legt im Hintergrund einen Index deiner Laufwerke an. Danach antwortet die Namenssuche über alle Laufwerke, während du tippst. Die Inhaltssuche liest die Dateien und merkt sich erkannten Text – die zweite Suche ist viel schneller.</p></details>
           <details><summary><span lang="en">Can I search inside files?</span><span lang="de">Kann ich in Dateien suchen?</span></summary>
             <p lang="en">Yes. Type <code>inhalt:word</code> (or <code>content:</code>) in the search bar, with quotes for several words. The AI content search reads PDFs, documents and images with OCR and explains each hit.</p><p lang="de">Ja. In der Suchleiste <code>inhalt:wort</code> (oder <code>content:</code>) eingeben, für mehrere Wörter mit Anführungszeichen. Die KI-Inhaltssuche liest PDFs, Dokumente und Bilder mit Texterkennung und erklärt jeden Treffer.</p></details>
+          <details><summary><span lang="en">Can I extend Foldex?</span><span lang="de">Kann ich Foldex erweitern?</span></summary>
+            <p lang="en">Yes, with plugins: a folder with a small <code>plugin.json</code> adds your own commands to the right-click menu. See the <a href="plugins.html">plugin docs</a>.</p><p lang="de">Ja, mit Plugins: Ein Ordner mit einer kleinen <code>plugin.json</code> fügt dem Rechtsklick-Menü eigene Befehle hinzu. Siehe <a href="plugins.html">Plugin-Anleitung</a>.</p></details>
           <details><summary><span lang="en">Do I need admin rights?</span><span lang="de">Brauche ich Administratorrechte?</span></summary>
             <p lang="en">No. The installer sets up Foldex for your user only.</p><p lang="de">Nein. Der Installer richtet Foldex nur für deinen Benutzer ein.</p></details>
           <details><summary><span lang="en">Can I use Foldex without installing it?</span><span lang="de">Geht Foldex auch ohne Installation?</span></summary>
@@ -769,6 +939,8 @@ footer a:hover { color: var(--text); }
         <div class="faq-col">
           <details><summary><span lang="en">Are my files sent to the cloud?</span><span lang="de">Werden meine Dateien in die Cloud geschickt?</span></summary>
             <p lang="en">Only if you want them to. Search, OCR, voice input and local models run entirely on your PC. Online services like Claude or OpenAI are only used if you set them up.</p><p lang="de">Nur, wenn du es willst. Suche, Texterkennung, Spracheingabe und lokale Modelle laufen komplett auf deinem PC. Online-Dienste wie Claude oder OpenAI nutzt Foldex nur, wenn du sie einrichtest.</p></details>
+          <details><summary><span lang="en">Does Foldex run on Linux and Android?</span><span lang="de">Läuft Foldex auf Linux und Android?</span></summary>
+            <p lang="en">Yes. Linux gets the full app as a program for x86_64 (GTK 3 needed). Android is a beta of the core app – browsing, Quick Look and search; some features such as the terminal, cloud drives, printing and sharing apps do not work there (yet). Install the APK and allow access to all files.</p><p lang="de">Ja. Für Linux gibt es die volle App als Programm für x86_64 (braucht GTK 3). Android ist eine Beta der Kern-App – Dateien ansehen, Schnellansicht und Suche; einiges wie Terminal, Cloud-Laufwerke, Drucken und Teilen-Apps funktioniert dort (noch) nicht. APK installieren und den Zugriff auf alle Dateien erlauben.</p></details>
           <details><summary><span lang="en">Does Foldex replace Windows Explorer?</span><span lang="de">Ersetzt Foldex den Windows-Explorer?</span></summary>
             <p lang="en">No, it runs alongside it. Windows Explorer keeps working as usual – use whichever you like.</p><p lang="de">Nein, es läuft daneben. Der Windows-Explorer bleibt wie gewohnt – du nutzt, was du magst.</p></details>
           <details><summary><span lang="en">How do I send files to my phone?</span><span lang="de">Wie schicke ich Dateien aufs Handy?</span></summary>
@@ -789,11 +961,25 @@ footer a:hover { color: var(--text); }
         <h2 class="display" lang="de">Kostenlos und in einer Minute startklar.<br><span class="blue">Hol dir Foldex.</span></h2>
         <p lang="en">The installer sets up Foldex for your user – without admin rights – and always fetches the newest version from GitHub.</p>
         <p lang="de">Der Installer richtet Foldex für deinen Benutzer ein – ohne Administratorrechte – und holt immer die neueste Version von GitHub.</p>
-        <div class="cta">
-          <a class="btn big" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe"><svg class="i"><use href="#i-download"/></svg><span lang="en">Installer for Windows</span><span lang="de">Installer für Windows</span></a>
-          <a class="btn ghost big" href="https://github.com/xJetouss/Foldex/raw/main/dist/foldex.exe">Portable EXE</a>
+        <div class="platforms">
+          <div class="platform" data-os="windows">
+            <h4><svg class="i"><use href="#i-win"/></svg> Windows<span class="you-tag"><span lang="en">your system</span><span lang="de">dein System</span></span></h4>
+            <p lang="en">Installer with automatic updates – or the portable EXE.</p><p lang="de">Installer mit automatischen Updates – oder die portable EXE.</p>
+            <a class="btn" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe"><svg class="i"><use href="#i-download"/></svg><span lang="en">Installer</span><span lang="de">Installer</span></a>
+            <p style="margin:10px 0 0;text-align:center"><a href="https://github.com/xJetouss/Foldex/raw/main/dist/foldex.exe">Portable EXE</a></p>
+          </div>
+          <div class="platform" data-os="linux">
+            <h4><svg class="i"><use href="#i-linux"/></svg> Linux<span class="you-tag"><span lang="en">your system</span><span lang="de">dein System</span></span></h4>
+            <p lang="en">x86_64 program – unpack, run <code>./foldex</code>. Needs GTK 3.</p><p lang="de">x86_64-Programm – entpacken, <code>./foldex</code> starten. Braucht GTK 3.</p>
+            <a class="btn" href="https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Linux-x86_64.tar.gz"><svg class="i"><use href="#i-download"/></svg>.tar.gz</a>
+          </div>
+          <div class="platform" data-os="android">
+            <h4><svg class="i"><use href="#i-android"/></svg> Android <small style="color:var(--blue-2);font-weight:600">Beta</small><span class="you-tag"><span lang="en">your system</span><span lang="de">dein System</span></span></h4>
+            <p lang="en">The core app for phones and tablets: browse, preview, search.</p><p lang="de">Die Kern-App für Handy und Tablet: Dateien ansehen, Vorschau, Suche.</p>
+            <a class="btn" href="https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Android.apk"><svg class="i"><use href="#i-download"/></svg>APK</a>
+          </div>
         </div>
-        <p class="req">Version 0.9.5 · Windows, 64-bit · <a href="https://github.com/xJetouss/Foldex/releases"><span lang="en">All versions</span><span lang="de">Alle Versionen</span></a></p>
+        <p class="req">Version 0.9.6 · <a href="https://github.com/xJetouss/Foldex/releases"><span lang="en">All versions</span><span lang="de">Alle Versionen</span></a></p>
       </div>
 
       <div class="contact reveal">
@@ -809,7 +995,7 @@ footer a:hover { color: var(--text); }
 
 <footer>
   <div class="wrap">
-    <span>Foldex 0.9.5 · <a href="mailto:jetouss@tssnt.dev">jetouss@tssnt.dev</a> · <span lang="en">Screenshots show a sample folder.</span><span lang="de">Bildschirmfotos zeigen einen Beispielordner.</span></span>
+    <span>Foldex 0.9.6 · <a href="mailto:jetouss@tssnt.dev">jetouss@tssnt.dev</a> · <span lang="en">Screenshots show a sample folder.</span><span lang="de">Bildschirmfotos zeigen einen Beispielordner.</span></span>
     <nav>
       <a href="https://github.com/xJetouss/Foldex">GitHub</a>
       <a href="https://github.com/xJetouss/Foldex/releases"><span lang="en">Versions</span><span lang="de">Versionen</span></a>
@@ -840,7 +1026,7 @@ footer a:hover { color: var(--text); }
     const m = META[root.lang] || META.en;
     document.title = m[0];
     $('meta[name="description"]').content = m[1];
-    syncCap(); rnShow(); searchRestart();
+    syncCap(); rnShow(); searchRestart(); applyOS();
   }
   $('#lang').addEventListener('click', () => {
     root.lang = root.lang === 'de' ? 'en' : 'de';
@@ -861,6 +1047,52 @@ footer a:hover { color: var(--text); }
     try { localStorage.setItem('foldex-theme', root.dataset.theme || 'dark'); } catch (e) {}
     applyTheme();
   });
+
+  // Betriebssystem erkennen und den passenden Download vorschlagen
+  function detectOS() {
+    const ua = navigator.userAgent || '', p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+    if (/android/i.test(ua)) return 'android';
+    if (/iphone|ipad|ipod/i.test(ua) || (/mac/i.test(p) && navigator.maxTouchPoints > 1)) return 'ios';
+    if (/win/i.test(p) || /windows/i.test(ua)) return 'windows';
+    if (/mac/i.test(p)) return 'mac';
+    if (/linux|x11|cros/i.test(p + ua)) return 'linux';
+    return 'windows';
+  }
+  const OS = new URLSearchParams(location.search).get('os') || detectOS();
+  const DL = {
+    windows: { href: 'https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe', en: 'Download for Windows', de: 'Für Windows laden' },
+    linux: { href: 'https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Linux-x86_64.tar.gz', en: 'Download for Linux', de: 'Für Linux laden' },
+    android: { href: 'https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Android.apk', en: 'Download for Android', de: 'Für Android laden' },
+  };
+  function applyOS() {
+    const d = DL[OS], note = $('#os-note');
+    if (d) {
+      $('#dl-main').href = d.href;
+      $('.dl-label').innerHTML = `<span lang="en">${d.en}</span><span lang="de">${d.de}</span>`;
+      note.hidden = true;
+    } else {
+      // macOS / iOS: noch keine Version – auf die Auswahl verweisen
+      $('#dl-main').href = '#download';
+      $('.dl-label').innerHTML = '<span lang="en">See all downloads</span><span lang="de">Alle Downloads</span>';
+      note.innerHTML = OS === 'mac' ? '<span lang="en">There is no macOS version yet – Foldex runs on Windows, Linux and Android.</span><span lang="de">Für macOS gibt es noch keine Version – Foldex läuft auf Windows, Linux und Android.</span>'
+                                    : '<span lang="en">There is no iPhone/iPad version yet – Foldex runs on Windows, Linux and Android.</span><span lang="de">Für iPhone/iPad gibt es noch keine Version – Foldex läuft auf Windows, Linux und Android.</span>';
+      note.hidden = false;
+    }
+    $$('.dl-menu a[data-os]').forEach(a => { a.classList.toggle('you', a.dataset.os === OS); a.querySelector('b').dataset.you = root.lang === 'de' ? 'dein System' : 'your system'; });
+    $$('.platform[data-os]').forEach(c => c.classList.toggle('you', c.dataset.os === OS));
+  }
+  const dlMenu = $('#dl-menu'), dlMore = $('#dl-more');
+  const setDl = open => { dlMenu.classList.toggle('open', open); dlMore.setAttribute('aria-expanded', open); };
+  dlMore.addEventListener('click', e => { e.stopPropagation(); setDl(!dlMenu.classList.contains('open')); });
+  document.addEventListener('click', e => { if (!e.target.closest('#dl')) setDl(false); });
+  addEventListener('keydown', e => { if (e.key === 'Escape') setDl(false); });
+
+  // Akzentfarbe ausprobieren (wie in Foldex: Einstellungen → Darstellung)
+  $$('.swatch').forEach(b => b.addEventListener('click', () => {
+    $$('.swatch').forEach(o => o.setAttribute('aria-pressed', o === b));
+    root.style.setProperty('--blue', b.dataset.c);
+    root.style.setProperty('--blue-2', b.dataset.c);
+  }));
 
   // Menü auf schmalen Bildschirmen
   const nav = $('#nav'), menu = $('#menu');

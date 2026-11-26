@@ -1,0 +1,6 @@
+[package]
+name = "rfd"
+version = "0.15.99"
+edition = "2021"
+publish = false
+description = "Android-Ersatz für rfd: Datei-Dialoge gibt es dort nicht (alle Aufrufe liefern None)"

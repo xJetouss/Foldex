@@ -1,0 +1,6 @@
+[package]
+name = "trash"
+version = "5.99.0"
+edition = "2021"
+publish = false
+description = "Android-Ersatz für trash: ohne System-Papierkorb wird endgültig gelöscht, die Papierkorb-Liste ist leer"

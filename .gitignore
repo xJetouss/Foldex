@@ -19,3 +19,9 @@ desktop.ini
 .DS_Store
 Plan.txt
 Cargo.lock
+# Android: verlinkter Icon-Ordner (Junction auf assets/)
+android/assets
+
+# Linux- und Android-Pakete kommen nur in die GitHub-Releases (zu groß fürs Repo)
+dist/Foldex-Linux-x86_64.tar.gz
+dist/Foldex-Android.apk

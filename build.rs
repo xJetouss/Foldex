@@ -23,6 +23,11 @@ fn main() {
     }
     std::fs::write(out.join("icon.rgba"), blob).unwrap();
 
+    // Android: C++-Laufzeit statisch einbinden (die Audio-Ausgabe über oboe ist C++)
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
+        println!("cargo:rustc-link-lib=c++_static");
+        println!("cargo:rustc-link-lib=c++abi");
+    }
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         if let Some(ico) = ico {
             let path = out.join("app.ico");

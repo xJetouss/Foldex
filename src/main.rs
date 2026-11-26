@@ -66,6 +66,7 @@ mod gitui;
 mod keymap;
 mod terminal;
 mod tools;
+mod plugins;
 mod ui;
 
 use eframe::egui::{
@@ -93,7 +94,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-const ROW_H: f32 = 30.0;
+/// Zeilenhöhe der Dateiliste (Einstellung „Zeilenhöhe“): 26 / 30 / 36 Punkte
+static ROW_HEIGHT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(30);
+fn row_h() -> f32 {
+    ROW_HEIGHT.load(Relaxed) as f32
+}
+/// Ecken-Faktor (Einstellung „Ecken“) in Prozent
+static CORNERS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(100);
 const HEAD_H: f32 = 32.0;
 const SIDE_ROW_H: f32 = 30.0;
 const ICON: f32 = 22.0;
@@ -101,6 +108,7 @@ const ICON: f32 = 22.0;
 // ───────────────────────────── Theme (Windows-11-Look) ─────────────────────────────
 
 fn apply_theme(ctx: &egui::Context, th: &Theme) {
+    let k = CORNERS.load(Relaxed) as f32 / 100.0;
     ctx.style_mut(|s| {
         let v = &mut s.visuals;
         v.panel_fill = th.bg;
@@ -110,11 +118,11 @@ fn apply_theme(ctx: &egui::Context, th: &Theme) {
         v.override_text_color = Some(th.text);
         v.hyperlink_color = th.accent;
         v.window_stroke = Stroke::new(1.0, th.line);
-        v.window_rounding = Rounding::same(12.0);
+        v.window_rounding = Rounding::same(12.0 * k);
         // Fenster mit Titelleiste: kein grauer Balken oben – Titel auf derselben Fläche wie der Inhalt
         // (wie bei Teilen, Ordner-Icon und Einstellungen)
         v.window_highlight_topmost = false;
-        v.menu_rounding = Rounding::same(8.0);
+        v.menu_rounding = Rounding::same(8.0 * k);
         v.popup_shadow = egui::epaint::Shadow {
             offset: vec2(0.0, 6.0),
             blur: 22.0,
@@ -132,7 +140,7 @@ fn apply_theme(ctx: &egui::Context, th: &Theme) {
             &mut v.widgets.active,
             &mut v.widgets.open,
         ] {
-            w.rounding = Rounding::same(6.0);
+            w.rounding = Rounding::same(6.0 * k);
         }
         v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, th.line);
         v.widgets.inactive.weak_bg_fill = th.field;
@@ -163,6 +171,28 @@ fn apply_theme(ctx: &egui::Context, th: &Theme) {
     });
 }
 
+/// Symbol eines Plugin-Befehls (Feld „icon“ in plugin.json)
+fn plugin_icon(name: &str) -> Ic {
+    match name {
+        "file" | "docs" => Ic::Docs,
+        "folder" => Ic::NewFolder,
+        "image" | "pictures" => Ic::Pictures,
+        "music" | "audio" => Ic::Music,
+        "video" => Ic::Video,
+        "code" => Ic::Code,
+        "terminal" => Ic::Terminal,
+        "tools" => Ic::Tools,
+        "star" => Ic::Star,
+        "spark" | "ai" => Ic::Spark,
+        "share" => Ic::Share,
+        "refresh" | "convert" => Ic::Refresh,
+        "git" => Ic::Git,
+        "copy" => Ic::Copy,
+        "trash" => Ic::Trash,
+        _ => Ic::Command,
+    }
+}
+
 /// Hauptknopf eines Fensters (Akzentfarbe), gleich groß wie die übrigen Knöpfe.
 fn primary_button(th: &Theme, text: &str) -> egui::Button<'static> {
     egui::Button::new(egui::RichText::new(text.to_string()).strong().color(if th.dark { th.bg } else { Color32::WHITE }))
@@ -170,7 +200,19 @@ fn primary_button(th: &Theme, text: &str) -> egui::Button<'static> {
         .min_size(vec2(96.0, 30.0))
 }
 
-fn setup_fonts(ctx: &egui::Context) {
+fn setup_fonts(ctx: &egui::Context, custom: &str) {
+    // eigene Schrift (Einstellung „Schrift“): TTF/OTF-Datei
+    if !custom.is_empty() {
+        if let Ok(bytes) = fs::read(custom) {
+            let mut f = egui::FontDefinitions::default();
+            f.font_data.insert("custom".into(), egui::FontData::from_owned(bytes));
+            if let Some(fam) = f.families.get_mut(&egui::FontFamily::Proportional) {
+                fam.insert(0, "custom".into());
+            }
+            ctx.set_fonts(f);
+            return;
+        }
+    }
     #[cfg(windows)]
     if let Ok(bytes) = fs::read(r"C:\Windows\Fonts\segoeui.ttf") {
         let mut f = egui::FontDefinitions::default();
@@ -207,8 +249,44 @@ fn setup_fonts(ctx: &egui::Context) {
 
 /// Farbthema für den aktuellen Hell-/Dunkel-Modus.
 fn themes_for(store: &themes::Store, st: &Settings, dark: bool) -> Theme {
-    store.resolve(if dark { &st.theme_dark } else { &st.theme_light }, dark)
+    let mut th = store.resolve(if dark { &st.theme_dark } else { &st.theme_light }, dark);
+    // eigene Akzentfarbe statt der des Themes
+    if let Some(c) = parse_hex(&st.accent) {
+        th.accent = c;
+    }
+    th
 }
+
+/// „#RRGGBB“ → Farbe
+fn parse_hex(s: &str) -> Option<Color32> {
+    let h = s.trim().trim_start_matches('#');
+    if h.len() != 6 {
+        return None;
+    }
+    let v = u32::from_str_radix(h, 16).ok()?;
+    Some(Color32::from_rgb((v >> 16) as u8, (v >> 8) as u8, v as u8))
+}
+
+/// Darstellungs-Einstellungen anwenden, die nicht im Theme stecken: Zoom, Zeilenhöhe, Ecken, Schrift
+fn apply_look(ctx: &egui::Context, st: &Settings) {
+    ROW_HEIGHT.store([26, 30, 36][st.density.min(2) as usize], Relaxed);
+    CORNERS.store([30, 100, 170][st.corners.min(2) as usize], Relaxed);
+    if std::env::var_os("FOLDEX_SHOT_ZOOM").is_none() {
+        ctx.set_zoom_factor(st.ui_zoom.clamp(80, 150) as f32 / 100.0);
+    }
+}
+
+/// Schriften zur Auswahl (Windows): (Name, Datei)
+const UI_FONTS: [(&str, &str); 8] = [
+    ("Segoe UI (Standard)", ""),
+    ("Arial", r"C:\Windows\Fonts\arial.ttf"),
+    ("Calibri", r"C:\Windows\Fonts\calibri.ttf"),
+    ("Verdana", r"C:\Windows\Fonts\verdana.ttf"),
+    ("Tahoma", r"C:\Windows\Fonts\tahoma.ttf"),
+    ("Trebuchet MS", r"C:\Windows\Fonts\trebuc.ttf"),
+    ("Georgia", r"C:\Windows\Fonts\georgia.ttf"),
+    ("Consolas", r"C:\Windows\Fonts\consola.ttf"),
+];
 
 /// Eingeschaltete und gefundene Editoren: (Schlüssel, Name, Programm). Eigene Editoren: „custom:N“.
 fn find_editors(st: &Settings) -> Vec<(String, String, PathBuf)> {
@@ -282,6 +360,11 @@ enum Dest {
 }
 
 enum Act {
+    /// Plugin-Befehl („plugin/befehl“) für die markierten Einträge (leer = aktueller Ordner)
+    Plugin(String, Vec<PathBuf>),
+    /// Plugin-Befehl nach Rückfrage ausführen
+    PluginConfirmed(String, Vec<PathBuf>),
+    PluginsReload,
     /// Audio → .txt (false) bzw. Video → .srt (true) mit Whisper
     Transcribe(Vec<PathBuf>, bool),
     /// mehrere Bilder bearbeiten (Fenster)
@@ -1152,6 +1235,11 @@ struct App {
     palette: Option<PaletteState>,
     tools: Option<ToolsWin>,
     rules: Option<RulesWin>,
+    /// installierte Plugins, laufende Plugin-Befehle, Ausgabe-Fenster und Rückfrage
+    plugins: Vec<plugins::Plugin>,
+    plugin_jobs: Vec<mpsc::Receiver<plugins::Done>>,
+    plugin_out: Option<plugins::Done>,
+    plugin_ask: Option<(String, String, Vec<PathBuf>)>,
     /// Einstellungen: Befehl, dessen Tastenkürzel gerade aufgenommen wird; ggf. Konflikt
     key_rec: Option<&'static str>,
     key_conflict: Option<(&'static str, Shortcut, &'static str)>,
@@ -1355,13 +1443,20 @@ struct App {
 impl App {
     fn new(ctx: egui::Context, launch: Launch) -> Self {
         boot("App::new");
-        setup_fonts(&ctx);
         boot("Schriften");
         // maximiert gespeichert: nach dem ersten Bild maximieren (beim Erzeugen allein greift es nicht)
         if launch.maximized {
             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
         }
+        let first_run = !Settings::exists();
         let mut st = Settings::load();
+        // Android, erster Start: Handy-Bildschirm – ohne Seitenleiste (per Knopf oben links einblendbar),
+        // größere Zeilen und Ecken für Finger
+        if first_run && cfg!(target_os = "android") {
+            st.show_sidebar = false;
+            st.density = 2;
+            st.corners = 2;
+        }
         // nur für Bildschirmfotos (FOLDEX_SHOT_THEME=light|dark): Farbschema im Speicher festlegen
         match std::env::var("FOLDEX_SHOT_THEME").as_deref() {
             Ok("light") => st.theme = 1,
@@ -1370,6 +1465,8 @@ impl App {
         }
         ctx.style_mut(|s| s.animation_time = if st.animations { 0.12 } else { 0.0 });
         theme_pref(&ctx, st.theme);
+        setup_fonts(&ctx, &st.ui_font);
+        apply_look(&ctx, &st);
         let themes = themes::Store::load();
         let th = themes_for(&themes, &st, ctx.style().visuals.dark_mode);
         apply_theme(&ctx, &th);
@@ -1453,6 +1550,10 @@ impl App {
             palette: None,
             tools: None,
             rules: None,
+            plugins: plugins::load_all(),
+            plugin_jobs: Vec::new(),
+            plugin_out: None,
+            plugin_ask: None,
             key_rec: None,
             key_conflict: None,
             git_st: None,
@@ -3191,6 +3292,27 @@ impl App {
             Act::BatchImages(paths) => {
                 self.batch = Some(batch::Opts::new(paths));
             }
+            Act::PluginsReload => {
+                self.plugins = plugins::load_all();
+                let n: usize = self.plugins.iter().map(|p| p.commands.len()).sum();
+                self.status = format!("{} Plugin(s) mit {n} Befehl(en) geladen", self.plugins.len());
+            }
+            Act::Plugin(key, sel) | Act::PluginConfirmed(key, sel) if self.plugin_cmd(&key).is_none() => {
+                let _ = sel;
+                self.status = format!("Plugin-Befehl „{key}“ nicht gefunden");
+            }
+            Act::Plugin(key, sel) if self.plugin_cmd(&key).is_some_and(|(_, c)| !c.confirm.is_empty()) => {
+                let q = self.plugin_cmd(&key).map(|(_, c)| c.confirm.clone()).unwrap_or_default();
+                self.plugin_ask = Some((key, q, sel));
+            }
+            Act::Plugin(key, sel) | Act::PluginConfirmed(key, sel) => {
+                if let Some((p, c)) = self.plugin_cmd(&key) {
+                    let cwd = self.pane().cwd.clone();
+                    let ctx = self.ctx.clone();
+                    self.status = format!("{} läuft …", c.title);
+                    self.plugin_jobs.push(plugins::run(&p, &c, &sel, &cwd, move || ctx.request_repaint()));
+                }
+            }
             Act::ContentSearch(q) => {
                 let dir = self.pane().cwd.clone();
                 let s = q.as_deref().map(|q| contentsearch::Search::start(q, &dir, &self.ctx));
@@ -3792,6 +3914,7 @@ const SETTINGS_PAGES: &[(&str, Ic, &str)] = &[
     ("Bildeditor-KI", Ic::Spark, "Modelle für Freistellen, Objekte, Kolorieren, Hochskalieren"),
     ("Schnellleiste", Ic::Tools, "Knöpfe über der Dateiliste"),
     ("Tastenkürzel", Ic::Keyboard, "Befehle und ihre Tasten"),
+    ("Plugins", Ic::Command, "Eigene Befehle im Rechtsklick-Menü und in der Befehlspalette"),
     ("Import / Export", Ic::Download, "Einstellungen als JSON-Datei übertragen"),
     ("Updates", Ic::Download, "Neue Versionen von GitHub laden und installieren"),
     ("Deinstallieren", Ic::Trash, "Foldex mit allen Daten und Modellen entfernen"),
@@ -8655,6 +8778,138 @@ impl App {
     }
 
     // ── Kontextmenüs ──
+    /// Plugin und Befehl zu „plugin/befehl“ (nur eingeschaltete Plugins ohne Fehler)
+    fn plugin_cmd(&self, key: &str) -> Option<(plugins::Plugin, plugins::Command)> {
+        let (pid, cid) = key.split_once('/')?;
+        let p = self.plugins.iter().find(|p| p.id == pid && p.error.is_none() && !self.st.plugins_off.contains(&p.id))?;
+        let c = p.commands.iter().find(|c| c.id == cid)?;
+        Some((p.clone(), c.clone()))
+    }
+
+    /// passende Plugin-Befehle zur Auswahl: (Schlüssel, Titel, Plugin-Name, Symbol)
+    fn plugin_matches(&self, sel: &[PathBuf]) -> Vec<(String, String, String, Ic)> {
+        let mut v = Vec::new();
+        for p in self.plugins.iter().filter(|p| p.error.is_none() && !self.st.plugins_off.contains(&p.id)) {
+            for c in p.commands.iter().filter(|c| c.applies(sel)) {
+                v.push((p.key(c), c.title.clone(), p.name.clone(), plugin_icon(&c.icon)));
+            }
+        }
+        v
+    }
+
+    /// Plugin-Befehle im Rechtsklick-Menü (bis 4 direkt, sonst im Untermenü „Plugins“)
+    fn plugin_menu(&self, ui: &mut egui::Ui, sel: &[PathBuf], acts: &mut Vec<Act>) {
+        let m = self.plugin_matches(sel);
+        if m.is_empty() {
+            return;
+        }
+        ui::menu_sep(ui);
+        let mut entries = |ui: &mut egui::Ui| {
+            for (key, title, _, ic) in &m {
+                if ui::menu_entry(ui, Some(*ic), title, "", true, false) {
+                    acts.push(Act::Plugin(key.clone(), sel.to_vec()));
+                }
+            }
+        };
+        if m.len() <= 4 {
+            entries(ui);
+        } else {
+            ui.menu_button("Plugins", |ui| {
+                ui.set_min_width(250.0);
+                entries(ui);
+            });
+        }
+    }
+
+    /// Ergebnisse laufender Plugin-Befehle; Ausgabe-Fenster und Rückfrage
+    fn ui_plugins(&mut self, ctx: &egui::Context) {
+        let mut done = Vec::new();
+        self.plugin_jobs.retain(|rx| match rx.try_recv() {
+            Ok(d) => {
+                done.push(d);
+                false
+            }
+            Err(mpsc::TryRecvError::Empty) => true,
+            Err(_) => false,
+        });
+        for d in done {
+            if d.refresh {
+                self.refresh_all();
+            }
+            let last = d.text.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim().to_string();
+            match (d.output, d.ok) {
+                (plugins::Output::Window, _) | (_, false) => {
+                    self.status = format!("{}: {}", d.title, if d.ok { "fertig" } else { "fehlgeschlagen" });
+                    self.plugin_out = Some(d);
+                }
+                (plugins::Output::Status, true) => self.status = if last.is_empty() { format!("{}: fertig ({:.1} s)", d.title, d.secs) } else { format!("{}: {last}", d.title) },
+                (plugins::Output::None, true) => self.status = format!("{} gestartet", d.title),
+            }
+        }
+        let th = self.th;
+        if let Some(d) = &self.plugin_out {
+            let mut open = true;
+            let mut close = false;
+            egui::Window::new(format!("{} – Ausgabe", d.title))
+                .id(Id::new("plugin_out"))
+                .open(&mut open)
+                .collapsible(false)
+                .resizable(true)
+                .default_size(vec2(620.0, 360.0))
+                .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label(egui::RichText::new(if d.ok { format!("Fertig nach {:.1} s", d.secs) } else { "Der Befehl ist fehlgeschlagen".to_string() }).size(12.5).color(if d.ok { th.sub } else { th.danger }));
+                    ui.add_space(6.0);
+                    egui::Frame::none().fill(th.field).rounding(Rounding::same(8.0)).inner_margin(Margin::same(10.0)).show(ui, |ui| {
+                        egui::ScrollArea::both().max_height(ui.available_height() - 50.0).auto_shrink([false, true]).show(ui, |ui| {
+                            let t = if d.text.is_empty() { "(keine Ausgabe)" } else { d.text.as_str() };
+                            ui.add(egui::Label::new(egui::RichText::new(t).monospace().size(12.5)).selectable(true));
+                        });
+                    });
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if ui.add(primary_button(&th, "Schließen")).clicked() {
+                            close = true;
+                        }
+                        if ui.add(egui::Button::new("Kopieren").min_size(vec2(96.0, 30.0))).clicked() {
+                            ctx.copy_text(d.text.clone());
+                        }
+                    });
+                });
+            if !open || close || ctx.input(|i| i.key_pressed(Key::Escape)) {
+                self.plugin_out = None;
+            }
+        }
+        if let Some((key, q, sel)) = self.plugin_ask.clone() {
+            let mut answer = None;
+            egui::Window::new("Plugin-Befehl ausführen?")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.set_width(380.0);
+                    ui.add(egui::Label::new(&q).wrap());
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if ui.add(primary_button(&th, "Ausführen")).clicked() {
+                            answer = Some(true);
+                        }
+                        if ui.add(egui::Button::new("Abbrechen").min_size(vec2(96.0, 30.0))).clicked() || ui.input(|i| i.key_pressed(Key::Escape)) {
+                            answer = Some(false);
+                        }
+                    });
+                });
+            match answer {
+                Some(true) => {
+                    self.plugin_ask = None;
+                    self.apply(Act::PluginConfirmed(key, sel));
+                }
+                Some(false) => self.plugin_ask = None,
+                None => {}
+            }
+        }
+    }
+
     fn bg_menu(&mut self, ui: &mut egui::Ui, pn: &Pane, acts: &mut Vec<Act>) {
         let st = self.st.clone();
         ui.menu_button("Ansicht", |ui| menu_view(ui, pn, acts));
@@ -8695,6 +8950,7 @@ impl App {
                 acts.push(Act::NewFile);
             }
         });
+        self.plugin_menu(ui, &[], acts);
         ui.separator();
         if menu_item(ui, "In neuem Tab öffnen", "", true) {
             acts.push(Act::TabDup(self.cur));
@@ -8877,6 +9133,7 @@ impl App {
                 });
             }
         }
+        self.plugin_menu(ui, &paths, acts);
         let archives: Vec<PathBuf> = paths
             .iter()
             .filter(|p| {
@@ -9799,7 +10056,7 @@ impl App {
         let grid = mode.cell();
         let (cols, cell_h) = match grid {
             Some((cw, ch, _)) => ((((width - 12.0) / cw).floor() as usize).max(1), ch),
-            None => (1, ROW_H),
+            None => (1, row_h()),
         };
         pn.cols = cols;
         pn.build_layout(cols, cell_h, GROUP_H);
@@ -10173,7 +10430,7 @@ impl App {
         }
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
-            .show_rows(ui, ROW_H, n, |ui, range| {
+            .show_rows(ui, row_h(), n, |ui, range| {
                 for pos in range {
                     let (path, name, dir, snippet) = match &sv.hits[pos].1 {
                         Hit::Idx(k, id) => {
@@ -10181,7 +10438,7 @@ impl App {
                             let id = *id as usize;
                             if id >= ix.len() {
                                 // Zeile trotzdem belegen, sonst verrutschen alle folgenden
-                                ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
+                                ui.allocate_exact_size(vec2(ui.available_width(), row_h()), Sense::hover());
                                 continue;
                             }
                             (ix.path(id), ix.name(id), ix.is_dir(id), None)
@@ -10197,7 +10454,7 @@ impl App {
                         ),
                     };
                     let (rect, resp) =
-                        ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::click_and_drag());
+                        ui.allocate_exact_size(vec2(ui.available_width(), row_h()), Sense::click_and_drag());
                     let inner = rect.shrink2(vec2(4.0, 1.0));
                     let selected = sv.sel.contains(&path);
                     if selected {
@@ -10851,6 +11108,13 @@ impl App {
         if st.theme != self.st.theme {
             theme_pref(&ctx, st.theme);
         }
+        if (st.ui_zoom, st.density, st.corners) != (self.st.ui_zoom, self.st.density, self.st.corners) {
+            apply_look(&ctx, &st);
+            apply_theme(&ctx, &self.th);
+        }
+        if st.ui_font != self.st.ui_font {
+            setup_fonts(&ctx, &st.ui_font);
+        }
         if st.animations != self.st.animations {
             ctx.style_mut(|s| s.animation_time = if st.animations { 0.12 } else { 0.0 });
         }
@@ -11095,6 +11359,8 @@ impl App {
         let mut transfer: Option<bool> = None; // Some(true) = exportieren, Some(false) = importieren
         let mut uninstall_ask = false;
         let mut ai_act: Vec<Act> = Vec::new();
+        let mut plugin_act: Option<Act> = None;
+        let mut plugin_err: Option<String> = None;
         // wirksame Theme-IDs (unbekannte oder unpassende IDs aus alten Einstellungen → Standard), sonst fehlen
         // Vorschau und Knöpfe, weil keine Auswahl gefunden wird
         let eff = |id: &str, dark: bool| -> String {
@@ -11202,6 +11468,53 @@ impl App {
                     settings_card(ui, th, "Darstellung", |ui| {
                         setting_row(ui, th, "Farbschema", "Hell, dunkel oder wie dein System", |ui| {
                             segmented(ui, th, at, &mut st.theme, &[(0u8, "System"), (1, "Hell"), (2, "Dunkel")]);
+                        });
+                        setting_row(ui, th, "Größe der Oberfläche", "Alles größer oder kleiner – Schrift, Symbole, Abstände", |ui| {
+                            segmented(ui, th, at, &mut st.ui_zoom, &[(90u16, "90 %"), (100, "100 %"), (110, "110 %"), (125, "125 %"), (150, "150 %")]);
+                        });
+                        setting_row(ui, th, "Zeilenhöhe", "Abstand der Einträge in der Dateiliste", |ui| {
+                            segmented(ui, th, at, &mut st.density, &[(0u8, "Kompakt"), (1, "Normal"), (2, "Großzügig")]);
+                        });
+                        setting_row(ui, th, "Ecken", "Rundung von Fenstern, Menüs und Knöpfen", |ui| {
+                            segmented(ui, th, at, &mut st.corners, &[(0u8, "Eckig"), (1, "Normal"), (2, "Rund")]);
+                        });
+                        setting_row(ui, th, "Akzentfarbe", "Eigene Farbe für Auswahl, Knöpfe und Markierungen – oder die des Themes", |ui| {
+                            let cur = parse_hex(&st.accent);
+                            let mut c = cur.unwrap_or(th.accent);
+                            if ui.color_edit_button_srgba(&mut c).changed() {
+                                st.accent = format!("#{:02X}{:02X}{:02X}", c.r(), c.g(), c.b());
+                            }
+                            for hex in ["#3B82F6", "#22C55E", "#F59E0B", "#EF4444", "#A855F7", "#EC4899", "#14B8A6"] {
+                                let col = parse_hex(hex).unwrap_or(th.accent);
+                                let (r, resp) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::click());
+                                ui.painter().circle_filled(r.center(), 8.0, col);
+                                if st.accent.eq_ignore_ascii_case(hex) {
+                                    ui.painter().circle_stroke(r.center(), 9.5, Stroke::new(1.5, th.text));
+                                }
+                                if resp.on_hover_text(hex).clicked() {
+                                    st.accent = hex.to_string();
+                                }
+                            }
+                            if ui.add_enabled(cur.is_some(), egui::Button::new("Theme")).on_hover_text("Akzentfarbe des Themes verwenden").clicked() {
+                                st.accent.clear();
+                            }
+                        });
+                        setting_row(ui, th, "Schrift", "Schriftart der Oberfläche – oder eine eigene TTF/OTF-Datei", |ui| {
+                            let cur = UI_FONTS.iter().find(|f| f.1 == st.ui_font).map(|f| f.0.to_string()).unwrap_or_else(|| {
+                                Path::new(&st.ui_font).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+                            });
+                            egui::ComboBox::from_id_salt("ui_font").selected_text(cur).width(190.0).show_ui(ui, |ui| {
+                                for (name, file) in UI_FONTS {
+                                    if (file.is_empty() || Path::new(file).is_file()) && ui.selectable_label(st.ui_font == file, name).clicked() {
+                                        st.ui_font = file.to_string();
+                                    }
+                                }
+                                if ui.selectable_label(false, "Eigene Schriftdatei …").clicked() {
+                                    if let Some(f) = rfd::FileDialog::new().add_filter("Schrift", &["ttf", "otf"]).pick_file() {
+                                        st.ui_font = f.display().to_string();
+                                    }
+                                }
+                            });
                         });
                         setting_row(ui, th, "Animationen", "Gleitende Übergänge bei Tabs, Seitenleiste und Andocken", |ui| {
                             toggle_switch(ui, th, at, &mut st.animations);
@@ -11940,6 +12253,63 @@ impl App {
                             },
                         );
                     });
+                    settings_card(ui, th, "Plugins", |ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            if ui.button("Plugin-Ordner öffnen").clicked() {
+                                let d = plugins::dir();
+                                let _ = fs::create_dir_all(&d);
+                                let _ = open::that_detached(&d);
+                            }
+                            if ui.button("Neu laden").clicked() {
+                                plugin_act = Some(Act::PluginsReload);
+                            }
+                            if ui.button("Beispiel-Plugin anlegen").on_hover_text("Legt „beispiel“ im Plugin-Ordner an – zum Ausprobieren und Abschauen").clicked() {
+                                match plugins::create_example() {
+                                    Ok(d) => {
+                                        let _ = open::that_detached(&d);
+                                        plugin_act = Some(Act::PluginsReload);
+                                    }
+                                    Err(e) => plugin_err = Some(e.to_string()),
+                                }
+                            }
+                            ui.hyperlink_to("Anleitung (Plugin-API)", "https://foldex.tssnt.dev/plugins.html");
+                        });
+                        ui.label(egui::RichText::new(format!("Ordner: {}", plugins::dir().display())).size(12.0).color(th.sub));
+                        if let Some(e) = &plugin_err {
+                            ui.label(egui::RichText::new(e).color(th.danger));
+                        }
+                        if self.plugins.is_empty() {
+                            ui.label(egui::RichText::new("Noch keine Plugins installiert. Ein Plugin ist ein Ordner mit einer plugin.json im Plugin-Ordner.").color(th.sub));
+                        }
+                        for pl in &self.plugins {
+                            let on = !st.plugins_off.contains(&pl.id);
+                            let mut sub = if pl.version.is_empty() { String::new() } else { format!("Version {} · ", pl.version) };
+                            if !pl.author.is_empty() {
+                                sub.push_str(&format!("von {} · ", pl.author));
+                            }
+                            sub.push_str(&match &pl.error {
+                                Some(e) => format!("Fehler: {e}"),
+                                None => format!("{} Befehl(e): {}", pl.commands.len(), pl.commands.iter().map(|c| c.title.as_str()).collect::<Vec<_>>().join(", ")),
+                            });
+                            if !pl.description.is_empty() {
+                                sub = format!("{} – {sub}", pl.description);
+                            }
+                            setting_row(ui, th, &pl.name, &sub, |ui| {
+                                let mut v = on;
+                                toggle_switch(ui, th, at, &mut v);
+                                if v != on {
+                                    if v {
+                                        st.plugins_off.remove(&pl.id);
+                                    } else {
+                                        st.plugins_off.insert(pl.id.clone());
+                                    }
+                                }
+                                if ui.small_button("Ordner").clicked() {
+                                    let _ = open::that_detached(&pl.dir);
+                                }
+                            });
+                        }
+                    });
                     settings_card(ui, th, "Updates", |ui| {
                         setting_row(ui, th, "Installierte Version", "Die Version von Foldex auf diesem PC", |ui| {
                             ui.label(egui::RichText::new(format!("Foldex {}", update::current())).size(15.0).strong().color(th.accent));
@@ -11990,6 +12360,9 @@ impl App {
             });
         self.set_settings(st);
         for a in ai_act {
+            self.apply(a);
+        }
+        if let Some(a) = plugin_act {
             self.apply(a);
         }
         if let Some(a) = theme_act {
@@ -12123,6 +12496,11 @@ impl App {
                 let l = format!("Neues Fenster auf Monitor {}{}", k + 1, if primary { " (Haupt)" } else { "" });
                 items.push((l, "Fenster".into(), String::new(), Ic::Window, Item::Act(Act::NewWindow(Some(work)))));
             }
+        }
+        // Plugin-Befehle für die Auswahl bzw. den aktuellen Ordner
+        let sel = self.pane().sel_paths();
+        for (key, title, plugin, ic) in self.plugin_matches(&sel) {
+            items.push((title, format!("Plugin · {plugin}"), String::new(), ic, Item::Act(Act::Plugin(key, sel.clone()))));
         }
         for d in self.recent.dirs.iter().take(10) {
             let n = d.file_name().map_or_else(|| d.display().to_string(), |n| n.to_string_lossy().into_owned());
@@ -13234,6 +13612,7 @@ impl eframe::App for App {
             }
         }
         self.ui_rules(ctx);
+        self.ui_plugins(ctx);
         self.pip_ui(ctx);
         prof::mark("windows");
         if let Some(w) = &mut self.share {
@@ -13471,6 +13850,31 @@ fn boot(step: &str) {
             let _ = writeln!(o, "{:>6} ms  {step}", t0.elapsed().as_millis());
         }
     }
+}
+
+/// Android: Einstieg der App (APK). Einstellungen, Index und Caches liegen im internen App-Speicher;
+/// gestartet wird im gemeinsamen Speicher des Geräts (Downloads, DCIM, Dokumente …).
+#[cfg(target_os = "android")]
+#[no_mangle]
+fn android_main(app: winit::platform::android::activity::AndroidApp) {
+    use winit::platform::android::EventLoopBuilderExtAndroid;
+    if let Some(p) = app.internal_data_path() {
+        std::env::set_var("HOME", &p);
+        std::env::set_var("XDG_CONFIG_HOME", p.join("config"));
+        std::env::set_var("XDG_DATA_HOME", p.join("data"));
+        std::env::set_var("XDG_CACHE_HOME", p.join("cache"));
+        std::env::set_var("TMPDIR", p.join("tmp"));
+        let _ = fs::create_dir_all(p.join("tmp"));
+    }
+    let start = ["/storage/emulated/0", "/sdcard"].iter().map(PathBuf::from).find(|d| fs::read_dir(d).is_ok());
+    let launch = Launch { paths: start.into_iter().collect(), ..Default::default() };
+    let opts = eframe::NativeOptions {
+        event_loop_builder: Some(Box::new(move |b| {
+            b.with_android_app(app);
+        })),
+        ..Default::default()
+    };
+    let _ = eframe::run_native("Foldex", opts, Box::new(move |cc| Ok(Box::new(App::new(cc.egui_ctx.clone(), launch)))));
 }
 
 fn main() -> eframe::Result<()> {

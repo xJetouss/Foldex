@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Foldex Plugin API</title>
+<meta name="description" content="Write Foldex plugins: add your own commands to the right-click menu and command palette with a small plugin.json.">
+<link rel="icon" type="image/png" href="favicon.png">
+<script>
+  try {
+    if (localStorage.getItem('foldex-lang') === 'de') document.documentElement.lang = 'de';
+    if (localStorage.getItem('foldex-theme') === 'light') document.documentElement.dataset.theme = 'light';
+  } catch (e) {}
+</script>
+<style>
+:root {
+  --bg: #000; --card: rgba(255,255,255,.035); --card-2: rgba(255,255,255,.06);
+  --line: rgba(255,255,255,.09); --line-2: rgba(255,255,255,.16);
+  --text: #f7f7f7; --text-2: #d6dae2; --sub: #9aa0ab; --dim: #6b717c;
+  --blue: #4f8eff; --blue-2: #7fb0ff; --code-bg: #07090d; --code: #dfe6f3; --header: rgba(0,0,0,.62); --hover: rgba(255,255,255,.1);
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #f5f7fb; --card: #fff; --card-2: #eef2f8; --line: rgba(15,23,42,.09); --line-2: rgba(15,23,42,.16);
+  --text: #0d1117; --text-2: #2b3240; --sub: #566070; --dim: #7a8392; --blue: #2f74f5; --blue-2: #2563eb;
+  --code-bg: #fff; --code: #1e293b; --header: rgba(245,247,251,.78); --hover: rgba(15,23,42,.06);
+  color-scheme: light;
+}
+:root[lang="en"] [lang="de"], :root[lang="de"] [lang="en"] { display: none !important; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 80px; background: var(--bg); }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: var(--blue-2); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.display { font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; font-weight: 750; letter-spacing: -.035em; }
+.blue { color: var(--blue); }
+header.top { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); background: var(--header); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; gap: 10px; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 750; font-size: 18px; color: var(--text); }
+.brand:hover { text-decoration: none; }
+.brand img { width: 28px; height: 28px; }
+.brand small { color: var(--sub); font-weight: 600; font-size: 14px; }
+.right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.pill-btn { height: 36px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--card-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); font: 600 13.5px/1 inherit; cursor: pointer; }
+.pill-btn:hover { background: var(--hover); text-decoration: none; }
+.theme-btn { width: 36px; padding: 0; justify-content: center; }
+.theme-btn .moon { display: none; }
+:root[data-theme="light"] .theme-btn .sun { display: none; }
+:root[data-theme="light"] .theme-btn .moon { display: block; }
+.layout { display: grid; grid-template-columns: 220px 1fr; gap: 48px; padding: 48px 0 80px; }
+aside nav { position: sticky; top: 96px; display: grid; gap: 2px; }
+aside a { color: var(--sub); font-size: 14px; padding: 6px 10px; border-radius: 8px; }
+aside a:hover { color: var(--text); background: var(--card-2); text-decoration: none; }
+h1 { font-size: clamp(38px, 5vw, 56px); line-height: 1.04; margin: 0 0 16px; }
+h2 { font-size: 28px; margin: 56px 0 12px; letter-spacing: -.02em; }
+h3 { font-size: 18px; margin: 28px 0 8px; }
+p, li { color: var(--text-2); }
+.lead { font-size: 18px; color: var(--sub); max-width: 720px; }
+code { font: .9em Consolas, "Cascadia Code", ui-monospace, monospace; background: var(--card-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; color: var(--code); }
+pre { background: var(--code-bg); border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line-2); padding: 18px 20px; overflow-x: auto; font: 13.5px/1.6 Consolas, "Cascadia Code", ui-monospace, monospace; color: var(--code); }
+pre code { background: none; border: 0; padding: 0; }
+.k { color: var(--blue-2); }
+.s { color: #4ade80; }
+:root[data-theme="light"] .s { color: #15803d; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card); border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; font-size: 14.5px; margin: 10px 0; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+td:first-child { white-space: nowrap; }
+.table-scroll { overflow-x: auto; }
+.note { background: rgba(79,142,255,.08); box-shadow: inset 0 0 0 1px rgba(79,142,255,.25); border-radius: 14px; padding: 14px 18px; color: var(--text-2); margin: 16px 0; }
+.warn { background: rgba(245,158,11,.08); box-shadow: inset 0 0 0 1px rgba(245,158,11,.3); }
+.steps { counter-reset: s; list-style: none; padding: 0; display: grid; gap: 10px; }
+.steps li { counter-increment: s; position: relative; padding-left: 40px; }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--blue); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+footer { border-top: 1px solid var(--line); padding: 28px 0 44px; color: var(--dim); font-size: 14px; }
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding-top: 32px; }
+  aside { display: none; }
+  .wrap { padding: 0 18px; }
+  .brand small { display: none; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+</svg>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="img/logo.png" alt="">Foldex <small>· Plugin API</small></a>
+    <div class="right">
+      <a class="pill-btn" href="index.html"><svg class="i"><use href="#i-back"/></svg><span lang="en">Home</span><span lang="de">Startseite</span></a>
+      <button class="pill-btn" id="lang" type="button"><svg class="i"><use href="#i-globe"/></svg><span lang="en">Deutsch</span><span lang="de">English</span></button>
+      <button class="pill-btn theme-btn" id="theme" type="button" aria-label="Light / dark"><svg class="i sun"><use href="#i-sun"/></svg><svg class="i moon"><use href="#i-moon"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap layout">
+  <aside>
+    <nav>
+      <a href="#start"><span lang="en">Quick start</span><span lang="de">Schnellstart</span></a>
+      <a href="#where"><span lang="en">Where plugins live</span><span lang="de">Wo Plugins liegen</span></a>
+      <a href="#manifest">plugin.json</a>
+      <a href="#commands"><span lang="en">Commands</span><span lang="de">Befehle</span></a>
+      <a href="#placeholders"><span lang="en">Placeholders</span><span lang="de">Platzhalter</span></a>
+      <a href="#scripts"><span lang="en">Scripts</span><span lang="de">Skripte</span></a>
+      <a href="#examples"><span lang="en">Examples</span><span lang="de">Beispiele</span></a>
+      <a href="#security"><span lang="en">Security</span><span lang="de">Sicherheit</span></a>
+    </nav>
+  </aside>
+  <article>
+    <h1 class="display" lang="en">Plugin API.<br><span class="blue">Your commands in Foldex.</span></h1>
+    <h1 class="display" lang="de">Plugin-API.<br><span class="blue">Deine Befehle in Foldex.</span></h1>
+    <p class="lead" lang="en">Add your own commands to the right-click menu and the command palette (Ctrl+Space). A command runs a program or script with the selected files – the output shows up in the status bar or in a window. No need to rebuild Foldex.</p>
+    <p class="lead" lang="de">Füge dem Rechtsklick-Menü und der Befehlspalette (Strg+Leertaste) eigene Befehle hinzu. Ein Befehl startet ein Programm oder Skript mit den markierten Dateien – die Ausgabe erscheint in der Statusleiste oder in einem Fenster. Foldex muss dafür nicht neu gebaut werden.</p>
+
+    <h2 id="start"><span lang="en">Quick start</span><span lang="de">Schnellstart</span></h2>
+    <ol class="steps" lang="en">
+      <li>Open <b>Settings → Plugins</b> in Foldex and click <b>Create example plugin</b>.</li>
+      <li>Foldex opens the folder <code>plugins\beispiel</code> with a <code>plugin.json</code>.</li>
+      <li>Edit it, click <b>Reload</b> – the commands appear in the right-click menu.</li>
+    </ol>
+    <ol class="steps" lang="de">
+      <li>In Foldex <b>Einstellungen → Plugins</b> öffnen und <b>Beispiel-Plugin anlegen</b> klicken.</li>
+      <li>Foldex öffnet den Ordner <code>plugins\beispiel</code> mit einer <code>plugin.json</code>.</li>
+      <li>Bearbeiten, <b>Neu laden</b> klicken – die Befehle stehen im Rechtsklick-Menü.</li>
+    </ol>
+
+    <h2 id="where"><span lang="en">Where plugins live</span><span lang="de">Wo Plugins liegen</span></h2>
+    <p lang="en">Every plugin is a folder with a <code>plugin.json</code> inside the plugin folder:</p>
+    <p lang="de">Jedes Plugin ist ein Ordner mit einer <code>plugin.json</code> im Plugin-Ordner:</p>
+<pre><code>%APPDATA%\foldex\plugins\        <span lang="en">(Linux: ~/.config/foldex/plugins/)</span><span lang="de">(Linux: ~/.config/foldex/plugins/)</span>
+├── bilder\
+│   ├── plugin.json
+│   └── verkleinern.ps1
+└── git-helfer\
+    └── plugin.json</code></pre>
+    <p lang="en">Settings → Plugins lists all plugins, turns them on and off and reloads them. The environment variable <code>FOLDEX_PLUGINS_DIR</code> points Foldex to another folder (handy while developing).</p>
+    <p lang="de">Einstellungen → Plugins zeigt alle Plugins, schaltet sie ein und aus und lädt sie neu. Mit der Umgebungsvariable <code>FOLDEX_PLUGINS_DIR</code> nutzt Foldex einen anderen Ordner (praktisch beim Entwickeln).</p>
+
+    <h2 id="manifest">plugin.json</h2>
+<pre><code>{
+  <span class="k">"name"</span>: <span class="s">"Resize images"</span>,
+  <span class="k">"version"</span>: <span class="s">"1.0"</span>,
+  <span class="k">"author"</span>: <span class="s">"Jan"</span>,
+  <span class="k">"description"</span>: <span class="s">"Shrinks photos with ImageMagick"</span>,
+  <span class="k">"api"</span>: 1,
+  <span class="k">"commands"</span>: [
+    {
+      <span class="k">"id"</span>: <span class="s">"small"</span>,
+      <span class="k">"title"</span>: <span class="s">"Resize to 1080 px"</span>,
+      <span class="k">"when"</span>: [<span class="s">"file"</span>],
+      <span class="k">"extensions"</span>: [<span class="s">"jpg"</span>, <span class="s">"png"</span>],
+      <span class="k">"each"</span>: true,
+      <span class="k">"run"</span>: <span class="s">"magick"</span>,
+      <span class="k">"args"</span>: [<span class="s">"{file}"</span>, <span class="s">"-resize"</span>, <span class="s">"1080x1080"</span>, <span class="s">"{parent}/{stem}-small.{ext}"</span>],
+      <span class="k">"output"</span>: <span class="s">"status"</span>,
+      <span class="k">"refresh"</span>: true,
+      <span class="k">"icon"</span>: <span class="s">"image"</span>
+    }
+  ]
+}</code></pre>
+    <div class="table-scroll"><table>
+      <thead><tr><th><span lang="en">Field</span><span lang="de">Feld</span></th><th><span lang="en">Meaning</span><span lang="de">Bedeutung</span></th></tr></thead>
+      <tbody>
+        <tr><td><code>name</code> *</td><td><span lang="en">Display name</span><span lang="de">Anzeigename</span></td></tr>
+        <tr><td><code>id</code></td><td><span lang="en">Unique id (default: folder name)</span><span lang="de">Eindeutige ID (Standard: Ordnername)</span></td></tr>
+        <tr><td><code>version</code>, <code>author</code>, <code>description</code>, <code>homepage</code></td><td><span lang="en">Shown in the settings</span><span lang="de">Erscheinen in den Einstellungen</span></td></tr>
+        <tr><td><code>api</code></td><td><span lang="en">Plugin API version (default 1). Plugins that need a newer API are not loaded.</span><span lang="de">Version der Plugin-API (Standard 1). Plugins, die eine neuere API brauchen, werden nicht geladen.</span></td></tr>
+        <tr><td><code>commands</code></td><td><span lang="en">List of commands</span><span lang="de">Liste der Befehle</span></td></tr>
+      </tbody>
+    </table></div>
+
+    <h2 id="commands"><span lang="en">Commands</span><span lang="de">Befehle</span></h2>
+    <div class="table-scroll"><table>
+      <thead><tr><th><span lang="en">Field</span><span lang="de">Feld</span></th><th><span lang="en">Default</span><span lang="de">Standard</span></th><th><span lang="en">Meaning</span><span lang="de">Bedeutung</span></th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code> *</td><td>–</td><td><span lang="en">Unique within the plugin</span><span lang="de">Eindeutig im Plugin</span></td></tr>
+        <tr><td><code>title</code> *</td><td>–</td><td><span lang="en">Menu text</span><span lang="de">Text im Menü</span></td></tr>
+        <tr><td><code>run</code> *</td><td>–</td><td><span lang="en">Program or script – relative to the plugin folder or a program on the PATH</span><span lang="de">Programm oder Skript – relativ zum Plugin-Ordner oder ein Programm im PATH</span></td></tr>
+        <tr><td><code>args</code></td><td><code>[]</code></td><td><span lang="en">Arguments with placeholders</span><span lang="de">Argumente mit Platzhaltern</span></td></tr>
+        <tr><td><code>when</code></td><td><code>["file"]</code></td><td><span lang="en"><code>file</code>, <code>folder</code>, <code>background</code> (right-click on an empty spot)</span><span lang="de"><code>file</code>, <code>folder</code>, <code>background</code> (Rechtsklick auf eine leere Stelle)</span></td></tr>
+        <tr><td><code>extensions</code></td><td><span lang="en">all</span><span lang="de">alle</span></td><td><span lang="en">Only for these extensions, e.g. <code>["pdf","docx"]</code></span><span lang="de">Nur für diese Endungen, z. B. <code>["pdf","docx"]</code></span></td></tr>
+        <tr><td><code>multiple</code></td><td><code>true</code></td><td><span lang="en">Also offer it with several selected items</span><span lang="de">Auch bei mehreren markierten Einträgen anbieten</span></td></tr>
+        <tr><td><code>each</code></td><td><code>false</code></td><td><span lang="en">Run the program once per selected item</span><span lang="de">Programm einmal je markiertem Eintrag starten</span></td></tr>
+        <tr><td><code>cwd</code></td><td><span lang="en">current folder</span><span lang="de">aktueller Ordner</span></td><td><span lang="en">Working folder (placeholders allowed)</span><span lang="de">Arbeitsordner (Platzhalter erlaubt)</span></td></tr>
+        <tr><td><code>output</code></td><td><code>"status"</code></td><td><span lang="en"><code>none</code> = just start (for GUI apps), <code>status</code> = last line in the status bar, <code>window</code> = full output in a window</span><span lang="de"><code>none</code> = nur starten (für Programme mit Fenster), <code>status</code> = letzte Zeile in der Statusleiste, <code>window</code> = ganze Ausgabe in einem Fenster</span></td></tr>
+        <tr><td><code>refresh</code></td><td><code>false</code></td><td><span lang="en">Reload the folder afterwards</span><span lang="de">Ordner danach neu einlesen</span></td></tr>
+        <tr><td><code>confirm</code></td><td><code>""</code></td><td><span lang="en">Ask this question before running</span><span lang="de">Diese Frage vor dem Ausführen stellen</span></td></tr>
+        <tr><td><code>icon</code></td><td>–</td><td><code>file folder image music video code terminal tools star spark share refresh git copy trash</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h2 id="placeholders"><span lang="en">Placeholders</span><span lang="de">Platzhalter</span></h2>
+    <div class="table-scroll"><table>
+      <thead><tr><th><span lang="en">Placeholder</span><span lang="de">Platzhalter</span></th><th><span lang="en">Value</span><span lang="de">Wert</span></th></tr></thead>
+      <tbody>
+        <tr><td><code>{files}</code></td><td><span lang="en">All selected paths – as its own argument it becomes several arguments</span><span lang="de">Alle markierten Pfade – als eigenes Argument wird es zu mehreren Argumenten</span></td></tr>
+        <tr><td><code>{file}</code></td><td><span lang="en">First selected path</span><span lang="de">Erster markierter Pfad</span></td></tr>
+        <tr><td><code>{name}</code> / <code>{stem}</code> / <code>{ext}</code></td><td><span lang="en">File name / without extension / extension without dot</span><span lang="de">Dateiname / ohne Endung / Endung ohne Punkt</span></td></tr>
+        <tr><td><code>{parent}</code></td><td><span lang="en">Folder of the first file</span><span lang="de">Ordner der ersten Datei</span></td></tr>
+        <tr><td><code>{dir}</code></td><td><span lang="en">Current folder in Foldex</span><span lang="de">Aktueller Ordner in Foldex</span></td></tr>
+        <tr><td><code>{plugin}</code></td><td><span lang="en">The plugin's folder</span><span lang="de">Ordner des Plugins</span></td></tr>
+        <tr><td><code>{count}</code></td><td><span lang="en">Number of selected items</span><span lang="de">Anzahl der markierten Einträge</span></td></tr>
+      </tbody>
+    </table></div>
+    <p class="note" lang="en">With <code>"when": ["background"]</code> nothing is selected – use <code>{dir}</code>.</p>
+    <p class="note" lang="de">Bei <code>"when": ["background"]</code> ist nichts markiert – nutze <code>{dir}</code>.</p>
+
+    <h2 id="scripts"><span lang="en">Scripts</span><span lang="de">Skripte</span></h2>
+    <p lang="en">If <code>run</code> ends in <code>.ps1</code>, <code>.bat</code>/<code>.cmd</code>, <code>.py</code>, <code>.js</code> or <code>.sh</code>, Foldex starts the matching interpreter (<code>powershell -File</code>, <code>cmd /C</code>, <code>python</code>, <code>node</code>, <code>bash</code>). The paths arrive as arguments – <code>$args</code> in PowerShell, <code>sys.argv[1:]</code> in Python.</p>
+    <p lang="de">Endet <code>run</code> auf <code>.ps1</code>, <code>.bat</code>/<code>.cmd</code>, <code>.py</code>, <code>.js</code> oder <code>.sh</code>, startet Foldex den passenden Interpreter (<code>powershell -File</code>, <code>cmd /C</code>, <code>python</code>, <code>node</code>, <code>bash</code>). Die Pfade kommen als Argumente an – <code>$args</code> in PowerShell, <code>sys.argv[1:]</code> in Python.</p>
+    <p lang="en">Commands with <code>status</code> or <code>window</code> output run in the background without a console window and are stopped after 10 minutes. A non-zero exit code counts as an error and opens the output window.</p>
+    <p lang="de">Befehle mit Ausgabe <code>status</code> oder <code>window</code> laufen ohne Konsolenfenster im Hintergrund und werden nach 10 Minuten beendet. Ein Exit-Code ungleich 0 gilt als Fehler und öffnet das Ausgabefenster.</p>
+
+    <h2 id="examples"><span lang="en">Examples</span><span lang="de">Beispiele</span></h2>
+    <h3 lang="en">Copy paths as a list</h3><h3 lang="de">Pfade als Liste kopieren</h3>
+<pre><code>{ <span class="k">"id"</span>: <span class="s">"paths"</span>, <span class="k">"title"</span>: <span class="s">"Copy paths"</span>, <span class="k">"when"</span>: [<span class="s">"file"</span>, <span class="s">"folder"</span>],
+  <span class="k">"run"</span>: <span class="s">"copy.ps1"</span>, <span class="k">"args"</span>: [<span class="s">"{files}"</span>], <span class="k">"output"</span>: <span class="s">"status"</span> }
+
+# copy.ps1
+$args | Set-Clipboard
+"$($args.Count) path(s) copied"</code></pre>
+    <h3 lang="en">Last commits of a folder</h3><h3 lang="de">Letzte Commits eines Ordners</h3>
+<pre><code>{ <span class="k">"id"</span>: <span class="s">"log"</span>, <span class="k">"title"</span>: <span class="s">"Last commits"</span>, <span class="k">"when"</span>: [<span class="s">"background"</span>],
+  <span class="k">"run"</span>: <span class="s">"git"</span>, <span class="k">"args"</span>: [<span class="s">"log"</span>, <span class="s">"--oneline"</span>, <span class="s">"-20"</span>], <span class="k">"output"</span>: <span class="s">"window"</span>, <span class="k">"icon"</span>: <span class="s">"git"</span> }</code></pre>
+    <h3 lang="en">Merge PDFs</h3><h3 lang="de">PDFs zusammenfügen</h3>
+<pre><code>{ <span class="k">"id"</span>: <span class="s">"merge"</span>, <span class="k">"title"</span>: <span class="s">"Merge PDFs"</span>, <span class="k">"extensions"</span>: [<span class="s">"pdf"</span>],
+  <span class="k">"run"</span>: <span class="s">"qpdf"</span>, <span class="k">"args"</span>: [<span class="s">"--empty"</span>, <span class="s">"--pages"</span>, <span class="s">"{files}"</span>, <span class="s">"--"</span>, <span class="s">"{dir}/merged.pdf"</span>],
+  <span class="k">"refresh"</span>: true, <span class="k">"confirm"</span>: <span class="s">"Merge the selected PDFs into merged.pdf?"</span> }</code></pre>
+    <h3 lang="en">Play in VLC</h3><h3 lang="de">In VLC abspielen</h3>
+<pre><code>{ <span class="k">"id"</span>: <span class="s">"vlc"</span>, <span class="k">"title"</span>: <span class="s">"Play in VLC"</span>, <span class="k">"extensions"</span>: [<span class="s">"mp4"</span>, <span class="s">"mkv"</span>, <span class="s">"mp3"</span>],
+  <span class="k">"run"</span>: <span class="s">"C:/Program Files/VideoLAN/VLC/vlc.exe"</span>, <span class="k">"args"</span>: [<span class="s">"{files}"</span>], <span class="k">"output"</span>: <span class="s">"none"</span>, <span class="k">"icon"</span>: <span class="s">"video"</span> }</code></pre>
+
+    <h2 id="security"><span lang="en">Security</span><span lang="de">Sicherheit</span></h2>
+    <p class="note warn" lang="en">Plugins run with your user rights like any other program. Only install plugins from sources you trust and look at <code>plugin.json</code> and its scripts before turning a plugin on.</p>
+    <p class="note warn" lang="de">Plugins laufen mit deinen Rechten wie jedes andere Programm. Installiere nur Plugins aus Quellen, denen du vertraust, und sieh dir <code>plugin.json</code> und die Skripte vor dem Einschalten an.</p>
+  </article>
+</main>
+
+<footer>
+  <div class="wrap">Foldex · <a href="index.html"><span lang="en">Home</span><span lang="de">Startseite</span></a> · <a href="https://github.com/xJetouss/Foldex">GitHub</a> · <a href="mailto:jetouss@tssnt.dev">jetouss@tssnt.dev</a></div>
+</footer>
+<script>
+  const root = document.documentElement;
+  document.getElementById('lang').addEventListener('click', () => {
+    root.lang = root.lang === 'de' ? 'en' : 'de';
+    try { localStorage.setItem('foldex-lang', root.lang); } catch (e) {}
+    document.title = root.lang === 'de' ? 'Foldex Plugin-API' : 'Foldex Plugin API';
+  });
+  document.getElementById('theme').addEventListener('click', () => {
+    if (root.dataset.theme === 'light') delete root.dataset.theme; else root.dataset.theme = 'light';
+    try { localStorage.setItem('foldex-theme', root.dataset.theme || 'dark'); } catch (e) {}
+  });
+</script>
+</body>
+</html>

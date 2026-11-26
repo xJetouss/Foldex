@@ -1,0 +1,133 @@
+# Android-Build von Foldex (Kern-App): baut src/main.rs als Bibliothek für eine APK.
+# Bauen:  cd android && cargo apk build --release      (siehe tools/build-android.bat)
+[package]
+name = "foldex-android"
+version = "0.9.6"
+edition = "2021"
+build = "../build.rs"
+publish = false
+
+[lib]
+name = "foldex"
+path = "../src/main.rs"
+crate-type = ["cdylib"]
+
+[features]
+default = []
+rar = []
+
+[dependencies]
+# glow = OpenGL-Rendering auf der GPU (wenig RAM). Für Vulkan/DX12/Metal: "glow" -> "wgpu".
+eframe = { version = "0.29", default-features = false, features = [
+    "glow",
+    "default_fonts",
+    "android-native-activity",
+] }
+rayon = "1"
+memchr = "2"
+memmap2 = "0.9"
+trash = { path = "stubs/trash" }
+open = "5"
+dirs = "5"
+chrono = { version = "0.4", default-features = false, features = [
+    "clock",
+    "std",
+] }
+
+# Icons: Material-Icon-Theme (SVG, im Programm eingebettet) → Texturen
+resvg = { version = "0.45", default-features = false }
+# Text-Werkzeug im Bildeditor (dieselbe Schrift-Bibliothek, die egui schon nutzt) – alle Systeme
+ab_glyph = "0.2"
+include_dir = "0.7"
+fs4 = "0.13"
+
+# Entpacker / Packer
+zip = { version = "2", default-features = false, features = [
+    "deflate",
+    "deflate64",
+    "bzip2",
+    "zstd",
+] }
+tar = "0.4"
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
+bzip2 = "0.5"
+xz2 = "0.1"
+zstd = "0.13"
+sevenz-rust = "0.6"
+
+
+# Themes und Einstellungs-Export als JSON; Datei-Dialoge für Import/Export
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rfd = { path = "stubs/rfd" }
+portable-pty = "0.9"
+vt100 = "0.15"
+regex = "1"
+ureq = "2"
+image = { version = "0.25", default-features = false, features = [
+    "png",
+    "jpeg",
+    "gif",
+    "bmp",
+    "ico",
+    "webp",
+    "tiff",
+    "tga",
+    "pnm",
+    "qoi",
+    "hdr",
+] }
+# Audio-Wiedergabe im Vorschau-Player (MP3, FLAC, WAV, AAC/M4A direkt; alles andere über ffmpeg)
+rodio = { version = "0.19", default-features = false, features = [
+    "symphonia-all",
+] }
+# Teilen über LocalSend: Geräte im Netz finden (Multicast) und per HTTPS senden (Zertifikat per Fingerabdruck geprüft)
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+sha2 = "0.10"
+socket2 = { version = "0.5", features = ["all"] }
+# Syntaxfarben in der Vorschau: Sublime-Grammatiken für rund 200 Sprachen (reines Rust, ohne C-Bibliothek)
+syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy", "dump-load"] }
+two-face = { version = "0.4", default-features = false, features = ["syntect-fancy"] }
+# Lokale KI im Bildeditor (Freistellen, Objekte auswählen, Kolorieren): ONNX Runtime wird erst bei Bedarf
+# geladen (DLL im Konfigurationsordner), daher keine Bibliothek beim Bauen
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "load-dynamic"] }
+
+
+winit = { version = "0.30", default-features = false, features = ["android-native-activity", "rwh_06"] }
+
+[build-dependencies]
+# rendert assets/app.svg zum EXE-Icon (Windows)
+resvg = { version = "0.45", default-features = false }
+embed-resource = "3"
+
+[package.metadata.android]
+package = "dev.tssnt.foldex"
+apk_name = "Foldex"
+build_targets = ["aarch64-linux-android", "x86_64-linux-android"]
+
+[package.metadata.android.sdk]
+min_sdk_version = 26
+target_sdk_version = 34
+
+[package.metadata.android.application]
+label = "Foldex"
+theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+
+[package.metadata.android.application.activity]
+config_changes = "orientation|screenSize|screenLayout|keyboardHidden"
+launch_mode = "singleTop"
+orientation = "unspecified"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.READ_EXTERNAL_STORAGE"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.WRITE_EXTERNAL_STORAGE"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.MANAGE_EXTERNAL_STORAGE"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[workspace]

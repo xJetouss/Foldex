@@ -64,13 +64,33 @@ tar -czf "%DIST%\foldex-%VER%.tar.gz" -C "%TEMP%" "foldex-%VER%"
 if errorlevel 1 goto :tarfehler
 rmdir /s /q "%STG%"
 
+rem Optional: fertige Linux-Version (in WSL/Ubuntu) und Android-APK – nur wenn die Werkzeuge da sind
+echo [5/6] Linux-Version (WSL) ...
+wsl -d Ubuntu -u root -- true >nul 2>&1
+if errorlevel 1 (
+    echo        uebersprungen: WSL mit Ubuntu fehlt ^(einmalig: wsl --install -d Ubuntu, dann tools\linux-setup.sh^)
+) else (
+    wsl -d Ubuntu -u root -- bash -c "tr -d '\r' < tools/build-linux.sh > /tmp/b.sh && bash /tmp/b.sh \"$PWD\""
+    if errorlevel 1 echo        Linux-Build fehlgeschlagen - siehe Meldungen oben.
+)
+echo [6/6] Android-APK ...
+where cargo-apk >nul 2>&1
+if errorlevel 1 (
+    echo        uebersprungen: cargo-apk fehlt ^(cargo install cargo-apk^)
+) else (
+    call tools\build-android.bat
+    if errorlevel 1 echo        Android-Build fehlgeschlagen - siehe Meldungen oben.
+)
+
 echo.
 echo Fertig! Alles liegt im Ordner dist:
 echo   dist\foldex.exe              die normale EXE: startet direkt, ohne Installation
 echo   dist\Foldex-Installer.exe    Windows-Installer: Assistent mit Installationsort, Verknuepfungen,
 echo                                und KI-Komponenten zum Auswaehlen
 echo                                (still: /silent [/dir=...] [/ai=id,id])
-echo   dist\foldex-%VER%.tar.gz     Quellcode fuer Linux: entpacken, dann "sh build.sh"
+echo   dist\foldex-%VER%.tar.gz     Quellcode
+echo   dist\Foldex-Linux-x86_64.tar.gz  Linux-Programm (falls WSL vorhanden)
+echo   dist\Foldex-Android.apk       Android-App (falls Android-SDK vorhanden)
 pause
 exit /b 0
 

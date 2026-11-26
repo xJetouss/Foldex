@@ -71,6 +71,18 @@ pub struct Settings {
     pub term_complete: bool,
     /// Fenster, Tabs, Kacheln und Vorschau beim Start wiederherstellen
     pub restore_session: bool,
+    /// ausgeschaltete Plugins (IDs)
+    pub plugins_off: BTreeSet<String>,
+    /// Größe der Oberfläche in Prozent (80–150)
+    pub ui_zoom: u16,
+    /// eigene Akzentfarbe „#RRGGBB“ (leer = Farbe des Themes)
+    pub accent: String,
+    /// Ecken: 0 = eckig, 1 = normal, 2 = rund
+    pub corners: u8,
+    /// Zeilenhöhe der Dateiliste: 0 = kompakt, 1 = normal, 2 = großzügig
+    pub density: u8,
+    /// Schrift der Oberfläche: leer = Systemschrift, sonst Pfad einer TTF/OTF-Datei
+    pub ui_font: String,
 }
 
 impl Default for Settings {
@@ -108,6 +120,12 @@ impl Default for Settings {
             show_preview: false,
             term_complete: true,
             restore_session: true,
+            plugins_off: BTreeSet::new(),
+            ui_zoom: 100,
+            accent: String::new(),
+            corners: 1,
+            density: 1,
+            ui_font: String::new(),
         }
     }
 }
@@ -120,6 +138,11 @@ fn file() -> PathBuf {
 }
 
 impl Settings {
+    /// gibt es schon gespeicherte Einstellungen? (sonst erster Start)
+    pub fn exists() -> bool {
+        file().is_file()
+    }
+
     pub fn load() -> Self {
         let mut s = Settings::default();
         // Werte älterer Versionen (fester Anbieter statt Modell-Profilen) – werden unten übernommen
@@ -164,6 +187,12 @@ impl Settings {
                     "show_preview" => s.show_preview = b,
                     "term_complete" => s.term_complete = b,
                     "restore_session" => s.restore_session = b,
+                    "plugins_off" => s.plugins_off = v.split(',').map(str::trim).filter(|x| !x.is_empty()).map(str::to_string).collect(),
+                    "ui_zoom" => s.ui_zoom = v.trim().parse::<u16>().unwrap_or(100).clamp(80, 150),
+                    "accent" => s.accent = v.trim().to_string(),
+                    "corners" => s.corners = v.trim().parse::<u8>().unwrap_or(1).min(2),
+                    "density" => s.density = v.trim().parse::<u8>().unwrap_or(1).min(2),
+                    "ui_font" => s.ui_font = v.trim().to_string(),
                     k if k.starts_with("agent_model.") => {
                         s.agent_model.insert(k["agent_model.".len()..].to_string(), v.trim().to_string());
                     }
@@ -247,6 +276,15 @@ impl Settings {
         for (k, v) in &self.agent_model {
             extra.push_str(&format!("agent_model.{k}={}\n", one_line(v)));
         }
+        extra.push_str(&format!(
+            "plugins_off={}\nui_zoom={}\naccent={}\ncorners={}\ndensity={}\nui_font={}\n",
+            self.plugins_off.iter().cloned().collect::<Vec<_>>().join(","),
+            self.ui_zoom,
+            one_line(&self.accent),
+            self.corners,
+            self.density,
+            one_line(&self.ui_font)
+        ));
         extra.push_str(&format!(
             "ai_assist={}\nai_agent={}\nai_auto={}\nai_cli_full={}\nquickbar={}\nshow_preview={}\nterm_complete={}\nrestore_session={}\nicon_set={}\n",
             one_line(&self.ai_assist),
