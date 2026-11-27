@@ -27,6 +27,16 @@ fn label_of(p: &Path) -> String {
 
 impl SidebarCfg {
     pub fn defaults() -> Self {
+        // Android: die Ordner, die man auf dem Handy wirklich braucht (im gemeinsamen Speicher)
+        if cfg!(target_os = "android") {
+            let root = Path::new("/storage/emulated/0");
+            let pins = [("Downloads", "Download"), ("Kamera", "DCIM/Camera"), ("Bilder", "Pictures"), ("Dokumente", "Documents"), ("Musik", "Music"), ("Videos", "Movies")]
+                .iter()
+                .map(|(l, d)| Entry { label: l.to_string(), path: root.join(d) })
+                .filter(|e| e.path.is_dir())
+                .collect();
+            return SidebarCfg { pins, show_pc: true, hidden: Vec::new() };
+        }
         let mut pins = Vec::new();
         let mut add = |label: &str, p: Option<PathBuf>| {
             if let Some(p) = p {
@@ -59,6 +69,13 @@ impl SidebarCfg {
                 if let Some((label, path)) = rest.split_once('\t') {
                     cfg.pins.push(Entry { label: label.to_string(), path: PathBuf::from(path) });
                 }
+            }
+        }
+        // Android: Einträge aus dem internen App-Ordner (ältere Versionen: „Home“) durch die Handy-Ordner ersetzen
+        if cfg!(target_os = "android") {
+            cfg.pins.retain(|e| !e.path.starts_with("/data"));
+            if cfg.pins.is_empty() {
+                cfg.pins = Self::defaults().pins;
             }
         }
         cfg
@@ -121,7 +138,28 @@ pub fn probe_drives(ctx: &eframe::egui::Context) -> (std::sync::mpsc::Sender<Ent
 
 /// Linux: Dateisystem, Persönlicher Ordner und eingehängte Datenträger (USB-Sticks, Partitionen, DVDs) –
 /// aus /proc/mounts, damit auch /run/media/<Benutzer>/<Stick> und /media/<Benutzer>/<Stick> erscheinen
-#[cfg(not(windows))]
+/// Android: nur Speicher, mit denen man etwas anfangen kann – interner Speicher, SD-Karte, USB-Speicher
+/// (kein „/“, keine System-, App- oder doppelt eingehängten Bereiche)
+#[cfg(target_os = "android")]
+pub fn linux_drives() -> Vec<Entry> {
+    let mut v = vec![Entry { label: "Interner Speicher".into(), path: PathBuf::from("/storage/emulated/0") }];
+    if let Ok(rd) = fs::read_dir("/storage") {
+        let mut ext: Vec<PathBuf> = rd
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.file_name().is_some_and(|n| n != "emulated" && n != "self") && fs::read_dir(p).is_ok())
+            .collect();
+        ext.sort();
+        let n = ext.len();
+        for (k, p) in ext.into_iter().enumerate() {
+            let label = if n == 1 { "SD-Karte / USB".to_string() } else { format!("Speicher {} ({})", k + 1, p.file_name().map(|x| x.to_string_lossy().into_owned()).unwrap_or_default()) };
+            v.push(Entry { label, path: p });
+        }
+    }
+    v
+}
+
+#[cfg(all(not(windows), not(target_os = "android")))]
 pub fn linux_drives() -> Vec<Entry> {
     let mut v = vec![Entry { label: "Dateisystem (/)".into(), path: PathBuf::from("/") }];
     // echte Datenträger, keine System- oder Netz-Pseudodateisysteme (und keine Cloud-Laufwerke von rclone)

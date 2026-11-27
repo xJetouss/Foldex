@@ -446,8 +446,27 @@ pub fn tool_btn(ui: &mut Ui, th: &Theme, ic: Ic, tip: &str, enabled: bool, activ
 }
 
 /// Wie `tool_btn`, aber an fester Position (Tab-Leiste).
+/// zusätzlicher Rand der Trefferfläche kleiner Knöpfe (Finger brauchen mehr Platz als die Maus)
+pub const TOUCH: f32 = if cfg!(target_os = "android") { 8.0 } else { 3.0 };
+
+/// Schließen-Knopf (×) für Fenster ohne Titelleiste: große runde Trefferfläche
+pub fn close_btn(ui: &mut Ui, th: &Theme) -> Response {
+    let s = if cfg!(target_os = "android") { 46.0 } else { 36.0 };
+    let (r, resp) = ui.allocate_exact_size(egui::vec2(s, s), Sense::click());
+    let hov = resp.hovered() || resp.is_pointer_button_down_on();
+    if hov {
+        ui.painter().circle_filled(r.center(), s / 2.0 - 2.0, if resp.is_pointer_button_down_on() { th.press } else { th.hover });
+    }
+    let c = r.center();
+    let k = if cfg!(target_os = "android") { 7.0 } else { 5.5 };
+    let st = egui::Stroke::new(1.6, if hov { th.text } else { th.sub });
+    ui.painter().line_segment([c + egui::vec2(-k, -k), c + egui::vec2(k, k)], st);
+    ui.painter().line_segment([c + egui::vec2(-k, k), c + egui::vec2(k, -k)], st);
+    resp.on_hover_text("Schließen (Esc)").on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
 pub fn tool_btn_at(ui: &mut Ui, th: &Theme, rect: Rect, id: egui::Id, ic: Ic, tip: &str, active: bool) -> Response {
-    let resp = ui.interact(rect, id, Sense::click());
+    let resp = ui.interact(rect.expand(TOUCH), id, Sense::click());
     paint_tool(ui, th, rect, &resp, ic, true, active);
     resp.on_hover_text(tip)
 }

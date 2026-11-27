@@ -1611,15 +1611,7 @@ impl ShareWin {
 
 /// Runder Schließen-Knopf (×) für Popups ohne Titelleiste.
 fn close_button(ui: &mut egui::Ui, th: &Theme) -> egui::Response {
-    let (r, resp) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
-    if resp.hovered() {
-        ui.painter().circle_filled(r.center(), 14.0, th.hover);
-    }
-    let c = r.center();
-    let st = Stroke::new(1.5, if resp.hovered() { th.text } else { th.sub });
-    ui.painter().line_segment([c + vec2(-4.5, -4.5), c + vec2(4.5, 4.5)], st);
-    ui.painter().line_segment([c + vec2(-4.5, 4.5), c + vec2(4.5, -4.5)], st);
-    resp.on_hover_text("Schließen (Esc)")
+    ui::close_btn(ui, th)
 }
 
 /// Symbol je Geräteart: Handy, Browser oder PC.

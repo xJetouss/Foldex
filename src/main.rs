@@ -159,9 +159,16 @@ fn apply_theme(ctx: &egui::Context, th: &Theme) {
             w.fg_stroke = Stroke::new(1.0, th.text);
         }
         s.spacing.item_spacing = vec2(8.0, 4.0);
-        s.spacing.button_padding = vec2(10.0, 5.0);
+        s.spacing.button_padding = if cfg!(target_os = "android") { vec2(12.0, 8.0) } else { vec2(10.0, 5.0) };
         s.spacing.menu_margin = Margin::same(6.0);
         s.spacing.window_margin = Margin::same(16.0);
+        // Schließen-Knopf in Titelleisten und Häkchen/Optionsfelder: Android größer zum Tippen
+        s.spacing.icon_width = if cfg!(target_os = "android") { 24.0 } else { 16.0 };
+        s.spacing.icon_width_inner = if cfg!(target_os = "android") { 14.0 } else { 9.0 };
+        if cfg!(target_os = "android") {
+            s.spacing.interact_size.y = 34.0;
+            s.spacing.button_padding = vec2(12.0, 8.0);
+        }
         s.text_styles.insert(egui::TextStyle::Heading, FontId::proportional(17.0));
         s.spacing.scroll = egui::style::ScrollStyle::floating();
         s.spacing.scroll.bar_width = 8.0;
@@ -1264,6 +1271,8 @@ struct App {
     /// Bildnummer, in der zuletzt ein Kontextmenü (Einträge/leere Stelle) offen war; Zurück-Taste schließt es
     menu_seen: u64,
     close_menu_req: bool,
+    /// Handy: Einstellungen zeigen die Liste der Bereiche (statt eines Bereichs)
+    settings_menu: bool,
     /// Einstellungen: Befehl, dessen Tastenkürzel gerade aufgenommen wird; ggf. Konflikt
     key_rec: Option<&'static str>,
     key_conflict: Option<(&'static str, Shortcut, &'static str)>,
@@ -1580,6 +1589,7 @@ impl App {
             plugin_ask: None,
             menu_seen: 0,
             close_menu_req: false,
+            settings_menu: true,
             key_rec: None,
             key_conflict: None,
             git_st: None,
@@ -3933,6 +3943,12 @@ fn icon_for(label: &str) -> Option<Ic> {
 
 /// Karte mit Überschrift (Einstellungen).
 /// Bereiche der Einstellungen: (Titel = Titel der Karte, Symbol, Kurzbeschreibung).
+/// Bereiche der Einstellungen für dieses System: auf Android nur, was dort funktioniert
+fn settings_pages() -> Vec<(&'static str, Ic, &'static str)> {
+    const NOT_ON_ANDROID: [&str; 8] = ["Terminal", "Editoren", "Lokale Modelle", "Bildeditor-KI", "Plugins", "Tastenkürzel", "Import / Export", "Deinstallieren"];
+    SETTINGS_PAGES.iter().copied().filter(|p| !cfg!(target_os = "android") || !NOT_ON_ANDROID.contains(&p.0)).collect()
+}
+
 const SETTINGS_PAGES: &[(&str, Ic, &str)] = &[
     ("Darstellung", Ic::Eye, "Farbschema, Ansicht, Seitenleiste"),
     ("Themes", Ic::Star, "Farben auswählen, anpassen, importieren"),
@@ -8706,18 +8722,20 @@ impl App {
                         self.side_recent_row(ui, &p, acts);
                     }
                 }
-                // Cloud: eingerichtete Dienste und „Cloud hinzufügen“
-                ui.add_space(8.0);
-                let h = self.side_header(ui, "Cloud", false);
-                self.side_unhide_menu(h, acts);
-                let vis: Vec<cloud::Place> = cloud::places().into_iter().filter(|c| !self.side.hidden.contains(&c.path)).collect();
-                for (i, c) in vis.iter().enumerate() {
-                    self.side_cloud_row(ui, i, c, &cwd, acts);
+                // Cloud: eingerichtete Dienste und „Cloud hinzufügen“ (auf Android nicht verfügbar)
+                if !cfg!(target_os = "android") {
+                    ui.add_space(8.0);
+                    let h = self.side_header(ui, "Cloud", false);
+                    self.side_unhide_menu(h, acts);
+                    let vis: Vec<cloud::Place> = cloud::places().into_iter().filter(|c| !self.side.hidden.contains(&c.path)).collect();
+                    for (i, c) in vis.iter().enumerate() {
+                        self.side_cloud_row(ui, i, c, &cwd, acts);
+                    }
+                    self.side_cloud_add(ui, acts);
                 }
-                self.side_cloud_add(ui, acts);
                 if self.side.show_pc {
                     ui.add_space(8.0);
-                    let h = self.side_header(ui, "Dieser PC", false);
+                    let h = self.side_header(ui, if cfg!(target_os = "android") { "Speicher" } else { "Dieser PC" }, false);
                     self.side_unhide_menu(h, acts);
                     let own: Vec<PathBuf> = cloudlogin::letters().into_iter().map(|l| PathBuf::from(format!("{l}:\\"))).collect();
                     for i in 0..self.drives.len() {
@@ -8728,9 +8746,11 @@ impl App {
                         }
                         self.side_row(ui, &l, &p, None, &cwd, acts);
                     }
-                    // Papierkorb direkt unter den Laufwerken, über der PC-Suche
-                    ui.add_space(4.0);
-                    self.side_trash_row(ui, acts);
+                    // Papierkorb direkt unter den Laufwerken, über der PC-Suche (Android hat keinen)
+                    if !cfg!(target_os = "android") {
+                        ui.add_space(4.0);
+                        self.side_trash_row(ui, acts);
+                    }
                     // PC-Suche: genau EINE Leiste – durchsucht alle Datenträger.
                     ui.add_space(8.0);
                     let (rect, _) = ui.allocate_exact_size(
@@ -8747,7 +8767,7 @@ impl App {
                     );
                     let te = egui::TextEdit::singleline(&mut self.pc_query)
                         .frame(false)
-                        .hint_text("PC durchsuchen (alle Laufwerke)")
+                        .hint_text(if cfg!(target_os = "android") { "Gerät durchsuchen" } else { "PC durchsuchen (alle Laufwerke)" })
                         .margin(Margin {
                             left: 34.0,
                             right: 8.0,
@@ -8842,8 +8862,11 @@ impl App {
         } else if self.plugin_out.is_some() || self.plugin_ask.is_some() {
             self.plugin_out = None;
             self.plugin_ask = None;
+        } else if self.show_settings && narrow(ctx) && !self.settings_menu {
+            self.settings_menu = true;
         } else if self.show_settings {
             self.show_settings = false;
+            self.settings_menu = true;
         } else if self.share.is_some() {
             self.share = None;
         } else if self.folder_icon.is_some() {
@@ -9054,10 +9077,12 @@ impl App {
         if menu_item(ui, "In neuem Tab öffnen", "", true) {
             acts.push(Act::TabDup(self.cur));
         }
-        if ui::menu_entry(ui, Some(Ic::Terminal), "Terminal hier öffnen", &self.keymap.label("term.new"), true, false) {
+        // Android: kein Terminal, keine Desktop-Editoren, KI-Agenten, Dual-Panel oder Papierkorb
+        let android = cfg!(target_os = "android");
+        if !android && ui::menu_entry(ui, Some(Ic::Terminal), "Terminal hier öffnen", &self.keymap.label("term.new"), true, false) {
             acts.push(Act::Terminal(None, pn.cwd.clone()));
         }
-        if !self.ed_paths.is_empty() {
+        if !android && !self.ed_paths.is_empty() {
             let eds = self.ed_paths.clone();
             let cwd = pn.cwd.clone();
             ui.menu_button("Ordner öffnen in", |ui| {
@@ -9069,14 +9094,14 @@ impl App {
                 }
             });
         }
-        if self.st.ai_enabled {
+        if !android && self.st.ai_enabled {
             let (backends, keys) = (self.backends(), self.keymap.clone());
             ui.menu_button("KI", |ui| {
                 ui.set_min_width(240.0);
                 ai_menu(ui, &pn.cwd, &keys, &backends, acts);
             });
         }
-        if self.git_st.is_none() && self.git_ok && ui::menu_entry(ui, Some(Ic::Git), "Git-Repository erstellen / klonen …", "", true, false) {
+        if !android && self.git_st.is_none() && self.git_ok && ui::menu_entry(ui, Some(Ic::Git), "Git-Repository erstellen / klonen …", "", true, false) {
             acts.push(Act::GitView(pn.cwd.clone()));
         }
         if self.git_st.is_some() && ui::menu_entry(ui, Some(Ic::Git), "Git-Repository anzeigen", &self.keymap.label("git.view"), true, false) {
@@ -9086,7 +9111,7 @@ impl App {
             ui.set_min_width(250.0);
             tools_items(ui, acts);
         });
-        if menu_item(
+        if !android && menu_item(
             ui,
             if self.dual_now {
                 "Dual-Panel schließen"
@@ -9106,13 +9131,13 @@ impl App {
                 acts.push(Act::PaneToTab(self.tabs[self.cur].active));
             }
         }
-        if menu_item(ui, "Papierkorb anzeigen", "", true) {
+        if !android && menu_item(ui, "Papierkorb anzeigen", "", true) {
             acts.push(Act::ShowTrash);
         }
         if menu_item(ui, "Suchindex aktualisieren", "", true) {
             acts.push(Act::Reindex(pn.cwd.clone()));
         }
-        if menu_item(ui, "Zusammenfassung dieses Ordners", "", true) {
+        if !android && menu_item(ui, "Zusammenfassung dieses Ordners", "", true) {
             acts.push(Act::Summary(pn.cwd.clone()));
         }
         if menu_item(ui, "Eigenschaften", "", true) {
@@ -9152,7 +9177,7 @@ impl App {
                         }
                     });
                 }
-                if ui::menu_entry(ui, Some(Ic::Terminal), "Terminal hier öffnen", "", true, false) {
+                if !cfg!(target_os = "android") && ui::menu_entry(ui, Some(Ic::Terminal), "Terminal hier öffnen", "", true, false) {
                     acts.push(Act::Terminal(None, p0.clone()));
                 }
             } else {
@@ -9306,10 +9331,11 @@ impl App {
         if menu_item(ui, "Umbenennen", "F2", single) {
             acts.push(Act::Rename);
         }
-        if menu_item(ui, "Löschen (Papierkorb)", "Entf", true) {
+        // Android hat keinen Papierkorb: nur „Löschen …“ (mit Rückfrage)
+        if !cfg!(target_os = "android") && menu_item(ui, "Löschen (Papierkorb)", "Entf", true) {
             acts.push(Act::Trash(paths.clone()));
         }
-        if menu_item(ui, "Endgültig löschen …", "Umschalt+Entf", true) {
+        if menu_item(ui, if cfg!(target_os = "android") { "Löschen …" } else { "Endgültig löschen …" }, "Umschalt+Entf", true) {
             acts.push(Act::DeletePerm(paths.clone()));
         }
         ui.separator();
@@ -9613,7 +9639,7 @@ impl App {
                 tab.right() - if show_x { 28.0 } else { 8.0 } - (ir.right() + 7.0),
             );
             let cr = Rect::from_center_size(pos2(tab.right() - 13.0, tab.center().y), vec2(20.0, 20.0));
-            let cresp = ui.interact(clipped(cr), resp.id.with("x"), Sense::click()).on_hover_text("Tab schließen");
+            let cresp = ui.interact(clipped(cr.expand(ui::TOUCH)), resp.id.with("x"), Sense::click()).on_hover_text("Tab schließen");
             if show_x {
                 if cresp.hovered() {
                     ui.painter().rect_filled(cr, 4.0, th.hover);
@@ -10711,7 +10737,7 @@ impl App {
                         if menu_item(ui, "Löschen", "Entf", true) {
                             acts.push(Act::Trash(targets.clone()));
                         }
-                        if menu_item(ui, "Endgültig löschen …", "Umschalt+Entf", true) {
+                        if menu_item(ui, if cfg!(target_os = "android") { "Löschen …" } else { "Endgültig löschen …" }, "Umschalt+Entf", true) {
                             acts.push(Act::DeletePerm(targets.clone()));
                         }
                         if menu_item(ui, "Eigenschaften", "", !many) {
@@ -11314,15 +11340,7 @@ impl App {
                         ui.add(egui::Label::new(egui::RichText::new(format!("für „{name}“")).size(12.0).color(th.sub)).truncate());
                     });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                        let (r, resp) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
-                        if resp.hovered() {
-                            ui.painter().circle_filled(r.center(), 15.0, th.hover);
-                        }
-                        let c = r.center();
-                        let s = Stroke::new(1.5, if resp.hovered() { th.text } else { th.sub });
-                        ui.painter().line_segment([c + vec2(-5.0, -5.0), c + vec2(5.0, 5.0)], s);
-                        ui.painter().line_segment([c + vec2(-5.0, 5.0), c + vec2(5.0, -5.0)], s);
-                        if resp.on_hover_text("Schließen (Esc)").clicked() {
+                        if ui::close_btn(ui, &th).clicked() {
                             open = false;
                         }
                     });
@@ -11491,8 +11509,9 @@ impl App {
         let max_h = if phone { ctx.screen_rect().height() } else { (ctx.screen_rect().height() - 60.0).clamp(300.0, 720.0) };
         let win_w = if phone { ctx.screen_rect().width() } else { (ctx.screen_rect().width() - 40.0).clamp(560.0, 900.0) };
         let frame = if phone { frame.rounding(Rounding::ZERO).inner_margin(Margin::symmetric(12.0, 10.0)).stroke(Stroke::NONE) } else { frame };
-        if !SETTINGS_PAGES.iter().any(|p| p.0 == self.settings_page) {
-            self.settings_page = SETTINGS_PAGES[0].0.to_string();
+        let pages = settings_pages();
+        if !pages.iter().any(|p| p.0 == self.settings_page) {
+            self.settings_page = pages[0].0.to_string();
         }
         egui::Window::new("Einstellungen")
             .title_bar(false)
@@ -11513,15 +11532,7 @@ impl App {
                         self.settings_page = "Updates".into();
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let (r, resp) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
-                        if resp.hovered() {
-                            ui.painter().rect_filled(r, 3.0, th.hover);
-                        }
-                        let c = r.center();
-                        let s = Stroke::new(1.4, th.text);
-                        ui.painter().line_segment([c + vec2(-5.0, -5.0), c + vec2(5.0, 5.0)], s);
-                        ui.painter().line_segment([c + vec2(-5.0, 5.0), c + vec2(5.0, -5.0)], s);
-                        if resp.on_hover_text("Schließen (Esc)").clicked() {
+                        if ui::close_btn(ui, &th).clicked() {
                             close = true;
                         }
                     });
@@ -11531,37 +11542,49 @@ impl App {
                 let mut body_h = max_h - 60.0;
                 let nav_w = if win_w < 680.0 { 150.0 } else { 186.0 };
                 let mut page = self.settings_page.clone();
-                // Handy: Bereiche als wischbare Leiste oben statt Spalte links
-                if phone {
-                    egui::ScrollArea::horizontal().id_salt("settings_nav").scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden).show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 6.0;
-                            for (name, _, _) in SETTINGS_PAGES {
-                                let on = page == *name;
-                                let b = egui::Button::new(egui::RichText::new(*name).size(13.5).color(if on { if th.dark { th.bg } else { Color32::WHITE } } else { th.text }))
-                                    .fill(if on { th.accent } else { th.field })
-                                    .stroke(Stroke::new(1.0, if on { th.accent } else { th.line }))
-                                    .rounding(Rounding::same(16.0))
-                                    .min_size(vec2(0.0, 34.0));
-                                let resp = ui.add(b);
-                                if on && self.settings_page != page {
-                                    resp.scroll_to_me(None);
-                                }
-                                if resp.clicked() {
-                                    page = name.to_string();
-                                }
+                // Handy: erst die Liste der Bereiche (wie die Android-Einstellungen), dann der gewählte Bereich
+                if phone && self.settings_menu {
+                    egui::ScrollArea::vertical().id_salt("settings_list").auto_shrink([false, false]).show(ui, |ui| {
+                        ui.spacing_mut().item_spacing.y = 4.0;
+                        for (name, ic, desc) in &pages {
+                            let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 64.0), Sense::click());
+                            if resp.hovered() || resp.is_pointer_button_down_on() {
+                                ui.painter().rect_filled(r, 12.0, th.hover);
                             }
-                        });
+                            let ic_r = Rect::from_center_size(pos2(r.left() + 26.0, r.center().y), vec2(38.0, 38.0));
+                            ui.painter().rect_filled(ic_r, 12.0, th.accent.gamma_multiply(0.16));
+                            ui::draw(ui.painter(), ic_r.shrink(10.0), *ic, th.accent);
+                            let tx = ic_r.right() + 14.0;
+                            let tw = r.right() - tx - 30.0;
+                            ui::paint_text(ui, tx, r.center().y - 9.0, name, 15.5, th.text, tw, false);
+                            ui::paint_text(ui, tx, r.center().y + 11.0, desc, 12.5, th.sub, tw, false);
+                            // Pfeil nach rechts
+                            let c = pos2(r.right() - 14.0, r.center().y);
+                            let st = Stroke::new(1.6, th.sub);
+                            ui.painter().line_segment([c + vec2(-3.0, -6.0), c + vec2(3.0, 0.0)], st);
+                            ui.painter().line_segment([c + vec2(3.0, 0.0), c + vec2(-3.0, 6.0)], st);
+                            if resp.clicked() {
+                                page = name.to_string();
+                                self.settings_menu = false;
+                            }
+                        }
                     });
-                    ui.add_space(8.0);
-                    body_h -= 50.0;
+                    self.settings_page = page;
+                    return;
+                }
+                if phone {
+                    let back = egui::Button::new(egui::RichText::new("‹  Alle Einstellungen").size(14.5).color(th.accent)).frame(false).min_size(vec2(0.0, 40.0));
+                    if ui.add(back).clicked() {
+                        self.settings_menu = true;
+                    }
+                    body_h -= 46.0;
                 }
                 ui.horizontal_top(|ui| {
                     if !phone {
                     let (nav, _) = ui.allocate_exact_size(vec2(nav_w, body_h), Sense::hover());
                     ui.allocate_new_ui(egui::UiBuilder::new().max_rect(nav).layout(egui::Layout::top_down(egui::Align::Min)), |ui| {
                         ui.spacing_mut().item_spacing.y = 2.0;
-                        for (name, ic, _) in SETTINGS_PAGES {
+                        for (name, ic, _) in &pages {
                             let (r, resp) = ui.allocate_exact_size(vec2(nav_w - 8.0, 32.0), Sense::click());
                             let on = page == *name;
                             if on || resp.hovered() {
@@ -11583,7 +11606,7 @@ impl App {
                     }
                     ui.vertical(|ui| {
                     ui.set_width(ui.available_width());
-                    let desc = SETTINGS_PAGES.iter().find(|p| p.0 == page).map_or("", |p| p.2);
+                    let desc = pages.iter().find(|p| p.0 == page).map_or("", |p| p.2);
                     ui.label(egui::RichText::new(&page).size(17.0).strong());
                     ui.label(egui::RichText::new(desc).size(12.0).color(th.sub));
                     ui.add_space(6.0);
