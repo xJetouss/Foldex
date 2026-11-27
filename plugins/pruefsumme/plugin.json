@@ -1,0 +1,27 @@
+{
+  "name": "Prüfsumme (SHA-256)",
+  "id": "pruefsumme",
+  "version": "1.0",
+  "author": "Foldex",
+  "description": "Zeigt die SHA-256-Prüfsumme der markierten Dateien – zum Vergleichen mit Download-Seiten.",
+  "api": 1,
+  "commands": [
+    {
+      "id": "sha256",
+      "title": "Prüfsumme (SHA-256)",
+      "description": "SHA-256 der markierten Dateien",
+      "when": [
+        "file"
+      ],
+      "run": "hash.ps1",
+      "args": [
+        "{files}"
+      ],
+      "unix": {
+        "run": "hash.sh"
+      },
+      "output": "window",
+      "icon": "tools"
+    }
+  ]
+}

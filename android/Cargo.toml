@@ -2,7 +2,7 @@
 # Bauen:  cd android && cargo apk build --release      (siehe tools/build-android.bat)
 [package]
 name = "foldex-android"
-version = "0.9.8"
+version = "0.9.9"
 edition = "2021"
 build = "../build.rs"
 publish = false
@@ -116,7 +116,7 @@ target_sdk_version = 34
 [package.metadata.android.application]
 label = "Foldex"
 icon = "@mipmap/ic_launcher"
-theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+theme = "@style/FoldexTheme"
 
 [package.metadata.android.application.activity]
 config_changes = "orientation|screenSize|screenLayout|keyboardHidden"
@@ -137,6 +137,43 @@ name = "android.permission.INTERNET"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.REQUEST_INSTALL_PACKAGES"
+
+# Teilen: installierte Apps erkennen (Paket-Sichtbarkeit ab Android 11)
+[[package.metadata.android.queries.package]]
+name = "com.whatsapp"
+
+[[package.metadata.android.queries.package]]
+name = "com.whatsapp.w4b"
+
+[[package.metadata.android.queries.package]]
+name = "org.thoughtcrime.securesms"
+
+[[package.metadata.android.queries.package]]
+name = "org.telegram.messenger"
+
+[[package.metadata.android.queries.package]]
+name = "org.thunderdog.challegram"
+
+[[package.metadata.android.queries.package]]
+name = "com.discord"
+
+[[package.metadata.android.queries.package]]
+name = "com.google.android.gm"
+
+[[package.metadata.android.queries.package]]
+name = "com.google.android.apps.docs"
+
+[[package.metadata.android.queries.package]]
+name = "org.localsend.localsend_app"
+
+[[package.metadata.android.queries.package]]
+name = "com.dropbox.android"
+
+[[package.metadata.android.queries.package]]
+name = "com.microsoft.skydrive"
+
+[[package.metadata.android.queries.package]]
+name = "com.nextcloud.client"
 
 [workspace]
 

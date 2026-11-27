@@ -4,13 +4,22 @@
 //! `docs/plugins.md`). Ein Befehl startet ein Programm oder Skript mit Platzhaltern für die markierten
 //! Dateien und den aktuellen Ordner; die Ausgabe kann in der Statusleiste oder in einem Fenster erscheinen.
 //!
+//! Ein Befehl kann je System ein eigenes Programm haben (`"windows"`, `"unix"`, `"linux"`, `"android"`); so laufen
+//! Plugins auf Windows, Linux und Android. Befehle ohne Programm für das laufende System werden ausgeblendet.
+//!
+//! **Katalog**: Plugins aus dem Foldex-Repository (`plugins/index.json`) lassen sich mit einem Klick installieren
+//! und wieder entfernen (Einstellungen → Plugins).
+//!
 //! Plugins laufen mit den Rechten des Benutzers wie jedes andere Programm – nur Plugins aus vertrauenswürdiger
 //! Quelle installieren.
 
 use serde::Deserialize;
 use std::{
     path::{Path, PathBuf},
-    sync::mpsc::{self, Receiver},
+    sync::{
+        mpsc::{self, Receiver},
+        Mutex,
+    },
     time::{Duration, Instant},
 };
 
@@ -60,7 +69,8 @@ struct CommandDef {
     /// bei mehreren Einträgen das Programm einmal je Eintrag starten (statt einmal mit allen)
     #[serde(default)]
     each: bool,
-    /// Programm oder Skript (relativ zum Plugin-Ordner oder im PATH)
+    /// Programm oder Skript (relativ zum Plugin-Ordner oder im PATH); leer, wenn es nur je System angegeben ist
+    #[serde(default)]
     run: String,
     #[serde(default)]
     args: Vec<String>,
@@ -79,6 +89,42 @@ struct CommandDef {
     /// Symbol im Menü: file, folder, image, code, terminal, tools, star, spark, share, refresh
     #[serde(default)]
     icon: String,
+    /// je System eigenes Programm/eigene Argumente
+    #[serde(default)]
+    windows: Option<PlatformDef>,
+    #[serde(default)]
+    unix: Option<PlatformDef>,
+    #[serde(default)]
+    linux: Option<PlatformDef>,
+    #[serde(default)]
+    android: Option<PlatformDef>,
+}
+
+/// Programm und Argumente für ein System (überschreibt `run`/`args`).
+#[derive(Deserialize, Clone, Default)]
+struct PlatformDef {
+    #[serde(default)]
+    run: Option<String>,
+    #[serde(default)]
+    args: Option<Vec<String>>,
+}
+
+impl CommandDef {
+    /// Angaben für das laufende System: Android → „android“, sonst „unix“; Linux → „linux“, sonst „unix“.
+    fn platform(&self) -> Option<&PlatformDef> {
+        if cfg!(windows) {
+            self.windows.as_ref()
+        } else if cfg!(target_os = "android") {
+            self.android.as_ref().or(self.unix.as_ref())
+        } else if cfg!(target_os = "linux") {
+            self.linux.as_ref().or(self.unix.as_ref())
+        } else {
+            self.unix.as_ref()
+        }
+    }
+    fn has_platforms(&self) -> bool {
+        self.windows.is_some() || self.unix.is_some() || self.linux.is_some() || self.android.is_some()
+    }
 }
 
 fn default_when() -> Vec<String> {
@@ -131,6 +177,13 @@ pub struct Plugin {
     pub commands: Vec<Command>,
     /// Fehler beim Lesen der plugin.json (Plugin wird angezeigt, aber nicht ausgeführt)
     pub error: Option<String>,
+}
+
+impl Plugin {
+    /// Logo des Plugins (`icon.png` im Plugin-Ordner)
+    pub fn icon(&self) -> Option<PathBuf> {
+        Some(self.dir.join("icon.png")).filter(|p| p.is_file())
+    }
 }
 
 impl Plugin {
@@ -194,8 +247,15 @@ pub fn parse(text: &str, folder: &str, dir: &Path) -> Result<Plugin, String> {
     }
     let mut commands = Vec::new();
     for c in m.commands {
-        if c.id.trim().is_empty() || c.title.trim().is_empty() || c.run.trim().is_empty() {
+        if c.id.trim().is_empty() || c.title.trim().is_empty() || (c.run.trim().is_empty() && !c.has_platforms()) {
             return Err(format!("Befehl „{}“: „id“, „title“ und „run“ sind Pflicht", c.title));
+        }
+        // Programm für dieses System (sonst Befehl hier ausblenden)
+        let plat = c.platform().cloned().unwrap_or_default();
+        let run = plat.run.clone().unwrap_or_else(|| c.run.clone());
+        let args = plat.args.clone().unwrap_or_else(|| c.args.clone());
+        if run.trim().is_empty() {
+            continue;
         }
         let output = match c.output.as_str() {
             "none" => Output::None,
@@ -218,8 +278,8 @@ pub fn parse(text: &str, folder: &str, dir: &Path) -> Result<Plugin, String> {
             description: c.description,
             multiple: c.multiple,
             each: c.each,
-            run: c.run,
-            args: c.args,
+            run,
+            args,
             cwd: c.cwd,
             output,
             refresh: c.refresh,
@@ -277,6 +337,8 @@ fn expand(arg: &str, files: &[PathBuf], cwd: &Path, plugin: &Path) -> Vec<String
 /// Programm auflösen: im Plugin-Ordner, sonst im PATH. Skripte über ihren Interpreter starten.
 fn program(run: &str, plugin: &Path) -> (PathBuf, Vec<String>) {
     let local = plugin.join(run);
+    // Android: „sh“ liegt unter /system/bin (PATH ist in Apps nicht immer gesetzt)
+    let run = if cfg!(target_os = "android") && run == "sh" { "/system/bin/sh" } else { run };
     let exe = if local.is_file() { local } else { PathBuf::from(run) };
     let lower = run.to_lowercase();
     let pre = |p: &str, a: &[&str]| -> (PathBuf, Vec<String>) {
@@ -293,7 +355,7 @@ fn program(run: &str, plugin: &Path) -> (PathBuf, Vec<String>) {
     } else if lower.ends_with(".js") || lower.ends_with(".mjs") {
         pre("node", &[])
     } else if lower.ends_with(".sh") {
-        pre(if cfg!(windows) { "bash" } else { "sh" }, &[])
+        pre(if cfg!(windows) { "bash" } else if cfg!(target_os = "android") { "/system/bin/sh" } else { "sh" }, &[])
     } else {
         (exe, Vec::new())
     }
@@ -415,6 +477,7 @@ pub fn create_example() -> std::io::Result<PathBuf> {
     if !f.exists() {
         std::fs::write(&f, EXAMPLE)?;
         std::fs::write(d.join("kopieren.ps1"), EXAMPLE_SCRIPT)?;
+        std::fs::write(d.join("kopieren.sh"), EXAMPLE_SH)?;
     }
     Ok(d)
 }
@@ -434,6 +497,7 @@ pub const EXAMPLE: &str = r#"{
       "when": ["file", "folder"],
       "run": "kopieren.ps1",
       "args": ["{files}"],
+      "unix": { "run": "kopieren.sh" },
       "output": "status",
       "icon": "file"
     },
@@ -442,8 +506,8 @@ pub const EXAMPLE: &str = r#"{
       "title": "Ordner-Info",
       "description": "Anzahl und Größe der Dateien im aktuellen Ordner",
       "when": ["background"],
-      "run": "powershell",
-      "args": ["-NoProfile", "-Command", "Get-ChildItem -File -Recurse | Measure-Object Length -Sum | Format-List Count, Sum"],
+      "windows": { "run": "powershell", "args": ["-NoProfile", "-Command", "Get-ChildItem -File -Recurse | Measure-Object Length -Sum | Format-List Count, Sum"] },
+      "unix": { "run": "sh", "args": ["-c", "echo \"Dateien: $(find . -type f | wc -l)\"; du -sh ."] },
       "output": "window",
       "icon": "tools"
     }
@@ -455,6 +519,182 @@ pub const EXAMPLE: &str = r#"{
 pub const EXAMPLE_SCRIPT: &str = "$args | Set-Clipboard
 \"$($args.Count) Pfad(e) kopiert\"
 ";
+
+/// Skript für Linux/Android: Pfade ausgeben (die Zwischenablage gibt es dort nicht für Skripte)
+pub const EXAMPLE_SH: &str = "for f in \"$@\"; do echo \"$f\"; done
+echo \"$# Pfad(e)\"
+";
+
+// ───────────────────────────── Katalog ─────────────────────────────
+
+/// Plugins im Foldex-Repository
+pub const CATALOG_URL: &str = "https://raw.githubusercontent.com/xJetouss/Foldex/main/plugins/";
+
+/// Eintrag in `plugins/index.json`
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+pub struct CatalogEntry {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub version: String,
+    #[serde(default)]
+    pub author: String,
+    /// Dateien im Plugin-Ordner (plugin.json, Skripte, icon.png)
+    #[serde(default)]
+    pub files: Vec<String>,
+    /// Systeme: windows, linux, android (leer = alle)
+    #[serde(default)]
+    pub platforms: Vec<String>,
+}
+
+impl CatalogEntry {
+    /// Läuft auf diesem System?
+    pub fn supported(&self) -> bool {
+        let os = if cfg!(windows) { "windows" } else if cfg!(target_os = "android") { "android" } else { "linux" };
+        self.platforms.is_empty() || self.platforms.iter().any(|p| p == os)
+    }
+}
+
+/// Zustand des Katalogs (wird im Hintergrund geladen)
+#[derive(Clone, Default)]
+pub enum Catalog {
+    #[default]
+    Idle,
+    Loading,
+    /// Einträge mit Logo (RGBA, Kantenlänge)
+    Ready(Vec<(CatalogEntry, Option<(usize, Vec<u8>)>)>),
+    Failed(String),
+}
+
+static CATALOG: Mutex<Catalog> = Mutex::new(Catalog::Idle);
+/// laufende Installationen (Plugin-ID) und letzte Meldung
+static BUSY: Mutex<Vec<String>> = Mutex::new(Vec::new());
+static MSG: Mutex<Option<(bool, String)>> = Mutex::new(None);
+static RELOAD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Wurde ein Plugin installiert? (Foldex liest die Plugins dann neu ein)
+pub fn take_reload() -> bool {
+    RELOAD.swap(false, std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn catalog() -> Catalog {
+    CATALOG.lock().map(|c| c.clone()).unwrap_or_default()
+}
+pub fn busy(id: &str) -> bool {
+    BUSY.lock().is_ok_and(|b| b.iter().any(|x| x == id))
+}
+pub fn message() -> Option<(bool, String)> {
+    MSG.lock().ok().and_then(|m| m.clone())
+}
+
+fn agent() -> ureq::Agent {
+    ureq::AgentBuilder::new().timeout(Duration::from_secs(20)).user_agent(concat!("Foldex/", env!("CARGO_PKG_VERSION"))).build()
+}
+
+/// Adresse des Katalogs (FOLDEX_PLUGIN_CATALOG: anderer Katalog, auch ein lokaler Ordner – zum Testen)
+fn catalog_base() -> String {
+    std::env::var("FOLDEX_PLUGIN_CATALOG").map(|c| if c.ends_with('/') || c.ends_with('\\') { c } else { format!("{c}/") }).unwrap_or_else(|_| CATALOG_URL.to_string())
+}
+
+fn get_bytes(url: &str) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    if !url.starts_with("http") {
+        return std::fs::read(url).map_err(|e| format!("{url}: {e}"));
+    }
+    let r = agent().get(url).call().map_err(|e| match e {
+        ureq::Error::Status(code, _) => format!("Fehler {code}"),
+        ureq::Error::Transport(t) => format!("keine Verbindung ({})", t.kind()),
+    })?;
+    let mut b = Vec::new();
+    r.into_reader().take(16 << 20).read_to_end(&mut b).map_err(|e| e.to_string())?;
+    Ok(b)
+}
+
+/// Sichere Namen: nur Buchstaben, Ziffern, „-“, „_“, „.“ und keine Pfade.
+fn safe_name(s: &str) -> bool {
+    !s.is_empty() && !s.starts_with('.') && s.chars().all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c))
+}
+
+/// Katalog (neu) laden.
+pub fn load_catalog(repaint: impl Fn() + Send + 'static) {
+    if let Ok(mut c) = CATALOG.lock() {
+        if matches!(*c, Catalog::Loading) {
+            return;
+        }
+        *c = Catalog::Loading;
+    }
+    std::thread::spawn(move || {
+        let r = (|| -> Result<Vec<(CatalogEntry, Option<(usize, Vec<u8>)>)>, String> {
+            let b = get_bytes(&format!("{}index.json", catalog_base()))?;
+            let list: Vec<CatalogEntry> = serde_json::from_slice(&b).map_err(|e| format!("index.json: {e}"))?;
+            Ok(list
+                .into_iter()
+                .filter(|e| safe_name(&e.id))
+                .map(|e| {
+                    let icon = e.files.iter().any(|f| f == "icon.png").then(|| get_bytes(&format!("{}{}/icon.png", catalog_base(), e.id)).ok()).flatten().and_then(|b| image::load_from_memory(&b).ok()).map(|i| {
+                        let i = i.resize(64, 64, image::imageops::FilterType::Lanczos3).to_rgba8();
+                        (i.width() as usize, i.into_raw())
+                    });
+                    (e, icon)
+                })
+                .collect())
+        })();
+        if let Ok(mut c) = CATALOG.lock() {
+            *c = match r {
+                Ok(v) => Catalog::Ready(v),
+                Err(e) => Catalog::Failed(e),
+            };
+        }
+        repaint();
+    });
+}
+
+/// Plugin aus dem Katalog installieren (alle Dateien in den Plugin-Ordner laden). `done` danach (Neu laden).
+pub fn install(e: CatalogEntry, done: impl Fn() + Send + 'static) {
+    if let Ok(mut b) = BUSY.lock() {
+        b.push(e.id.clone());
+    }
+    std::thread::spawn(move || {
+        let r = (|| -> Result<(), String> {
+            if !safe_name(&e.id) || e.files.iter().any(|f| !safe_name(f)) || !e.files.iter().any(|f| f == "plugin.json") {
+                return Err(format!("{}: ungültiger Katalog-Eintrag", e.name));
+            }
+            // erst alles laden, dann schreiben (kein halbes Plugin bei Netzfehlern)
+            let mut data = Vec::new();
+            for f in &e.files {
+                data.push((f.clone(), get_bytes(&format!("{}{}/{f}", catalog_base(), e.id))?));
+            }
+            let d = dir().join(&e.id);
+            std::fs::create_dir_all(&d).map_err(|x| format!("{}: {x}", d.display()))?;
+            for (f, b) in data {
+                std::fs::write(d.join(&f), b).map_err(|x| format!("{f}: {x}"))?;
+            }
+            Ok(())
+        })();
+        if let Ok(mut m) = MSG.lock() {
+            *m = Some(match &r {
+                Ok(()) => (true, format!("„{}“ installiert", e.name)),
+                Err(x) => (false, x.clone()),
+            });
+        }
+        if let Ok(mut b) = BUSY.lock() {
+            b.retain(|x| x != &e.id);
+        }
+        RELOAD.store(true, std::sync::atomic::Ordering::Relaxed);
+        done();
+    });
+}
+
+/// Plugin entfernen (Ordner löschen).
+pub fn uninstall(id: &str) -> Result<(), String> {
+    if !safe_name(id) {
+        return Err("ungültige Plugin-ID".into());
+    }
+    let d = dir().join(id);
+    std::fs::remove_dir_all(&d).map_err(|e| format!("{}: {e}", d.display()))
+}
 
 #[cfg(test)]
 mod tests {
@@ -480,8 +720,14 @@ mod tests {
         assert_eq!(p.commands[1].output, Output::Window);
         assert!(parse(r#"{"name":"T","commands":[{"id":"a","title":"x","run":"y","output":"laut"}]}"#, "t", Path::new(".")).is_err());
         assert!(parse(r#"{"name":"T","api":99}"#, "t", Path::new(".")).is_err());
-        // Beispiel-Plugin ist gültig
-        assert_eq!(plug(EXAMPLE).commands.len(), 2);
+        // Beispiel-Plugin ist gültig (je System ein Programm)
+        let ex = plug(EXAMPLE);
+        assert_eq!(ex.commands.len(), 2);
+        assert_eq!(ex.commands[1].run, if cfg!(windows) { "powershell" } else { "sh" });
+        // ohne Programm für dieses System: Befehl ausgeblendet
+        let only = plug(r#"{"name":"T","commands":[{"id":"a","title":"x","android":{"run":"sh"}}]}"#);
+        assert_eq!(only.commands.len(), usize::from(cfg!(target_os = "android")));
+        assert!(safe_name("hash-pruefen") && !safe_name("../x") && !safe_name("a/b") && !safe_name(""));
     }
 
     /// echter Aufruf: Ausgabe kommt zurück, Fehler werden gemeldet

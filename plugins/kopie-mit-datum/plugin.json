@@ -1,0 +1,28 @@
+{
+  "name": "Kopie mit Datum",
+  "id": "kopie-mit-datum",
+  "version": "1.0",
+  "author": "Foldex",
+  "description": "Legt neben jeder markierten Datei eine Kopie mit dem heutigen Datum im Namen an (bericht_2026-11-27.pdf).",
+  "api": 1,
+  "commands": [
+    {
+      "id": "kopie",
+      "title": "Kopie mit Datum anlegen",
+      "description": "Kopie mit heutigem Datum im Namen",
+      "when": [
+        "file"
+      ],
+      "run": "kopie.ps1",
+      "args": [
+        "{files}"
+      ],
+      "unix": {
+        "run": "kopie.sh"
+      },
+      "output": "status",
+      "refresh": true,
+      "icon": "file"
+    }
+  ]
+}

@@ -11,8 +11,13 @@
 //! - **E-Mail**: Thunderbird bzw. Outlook (klassisch) mit Anhang; sonst Standard-Mailprogramm per Simple MAPI, beim
 //!   neuen Outlook (kann keine fremden Anhänge) eine Mail mit Download-Link (`mailto:`).
 //! - **Cloud-Apps**: OneDrive, Google Drive, Dropbox, iCloud Drive, Nextcloud – Kopie in den synchronisierten Ordner.
-//! - **Link ohne Anmeldung**: catbox, Gofile, temp.sh, litterbox, uguu, tmpfiles. Lehnt ein Dienst ab (z. B. die
-//!   Litterbox-Firewall mit „412 No file!“), versucht Foldex es einmal erneut und weicht dann auf einen anderen Dienst aus.
+//! - **Link ohne Anmeldung**: catbox, Gofile, temp.sh, litterbox, uguu, tmpfiles – jeweils mit dem Logo des Dienstes
+//!   (Favicon, einmal geladen und zwischengespeichert). Lehnt ein Dienst ab (z. B. die Litterbox-Firewall mit
+//!   „412 No file!“), versucht Foldex es einmal erneut und weicht dann auf einen anderen Dienst aus.
+//! - **Eigene Upload-Dienste**: „+ Eigener Dienst“ – Adresse, Dateifeld, weitere Felder, Kopfzeilen und wo der Link in
+//!   der Antwort steht (sonst automatisch erkannt). Gespeichert in `upload-hosts.json` im Foldex-Konfigurationsordner.
+//! - **Android**: installierte Apps (WhatsApp, Signal, Telegram, Gmail, Drive …) bekommen die Datei direkt per
+//!   Teilen-Intent; „Nochmal teilen“ öffnet das Teilen-Menü des Systems (Windows bzw. Android).
 //! Fortschritt und Ergebnis erscheinen als Popup in der Fenstermitte (Kopieren / Öffnen); nach dem Schließen ist alles
 //! weg – es gibt keine angesammelte Liste.
 
@@ -21,6 +26,7 @@ use crate::localsend::{self, Device, Discovery};
 use crate::themes::Theme;
 use crate::ui::{self, Ic};
 use eframe::egui::{self, pos2, vec2, Color32, FontId, Margin, Rect, Rounding, Sense, Stroke};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -28,8 +34,8 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering::Relaxed},
-        mpsc::{self, Receiver},
-        Arc,
+        mpsc::{self, Receiver, Sender},
+        Arc, OnceLock, RwLock,
     },
     time::{Duration, Instant},
 };
@@ -75,6 +81,8 @@ enum Via {
     Mapi,
     /// in einen synchronisierten Ordner kopieren
     Cloud(PathBuf),
+    /// Android: Teilen-Intent direkt an dieses Paket
+    Android(&'static str),
 }
 
 #[derive(Clone, Debug)]
@@ -115,8 +123,71 @@ fn apps_folder(aumid: &str) -> String {
     format!("shell:AppsFolder\\{aumid}")
 }
 
+/// Android: Apps, die Dateien per Teilen-Intent annehmen (nur installierte).
+#[cfg(target_os = "android")]
+fn android_apps() -> Vec<App> {
+    let list: [(AppId, &'static str, &'static str, u32); 12] = [
+        (AppId::LocalSend, "LocalSend", "org.localsend.localsend_app", 0x2bb38a),
+        (AppId::WhatsApp, "WhatsApp", "com.whatsapp", 0x25d366),
+        (AppId::WhatsApp, "WhatsApp Business", "com.whatsapp.w4b", 0x25d366),
+        (AppId::Signal, "Signal", "org.thoughtcrime.securesms", 0x3a76f0),
+        (AppId::Telegram, "Telegram", "org.telegram.messenger", 0x29a9eb),
+        (AppId::Telegram, "Telegram X", "org.thunderdog.challegram", 0x29a9eb),
+        (AppId::Discord, "Discord", "com.discord", 0x5865f2),
+        (AppId::Mail, "Gmail", "com.google.android.gm", 0xea4335),
+        (AppId::GoogleDrive, "Google Drive", "com.google.android.apps.docs", 0x1fa463),
+        (AppId::OneDrive, "OneDrive", "com.microsoft.skydrive", 0x0f6cbd),
+        (AppId::Dropbox, "Dropbox", "com.dropbox.android", 0x0061fe),
+        (AppId::Nextcloud, "Nextcloud", "com.nextcloud.client", 0x0082c9),
+    ];
+    list.into_iter()
+        .filter(|(_, _, pkg, _)| crate::android::installed(pkg))
+        .map(|(id, name, pkg, c)| App { id, name, via: Via::Android(pkg), icon: Some(format!("android:{pkg}")), color: rgb(c) })
+        .collect()
+}
+
+/// Symbol einer App: Android-Paket („android:…“) oder Windows-Shell.
+fn app_icon_image(name: &str) -> Option<egui::ColorImage> {
+    #[cfg(target_os = "android")]
+    if let Some(pkg) = name.strip_prefix("android:") {
+        let (px, rgba) = crate::android::app_icon(pkg, 96)?;
+        return Some(egui::ColorImage::from_rgba_unmultiplied([px, px], &rgba));
+    }
+    crate::preview::shell_icon(name, 64)
+}
+
+/// Gemeinsamer MIME-Typ der Dateien (für das System-Teilen): gleich → dieser, gleiche Art → „image/*“, sonst „*/*“.
+fn share_mime(files: &[PathBuf]) -> String {
+    let ms: Vec<&str> = files.iter().map(|f| mime(f)).collect();
+    match ms.first() {
+        Some(&m) if m != "application/octet-stream" && ms.iter().all(|x| *x == m) => m.to_string(),
+        Some(&m) if m.contains('/') && ms.iter().all(|x| x.split('/').next() == m.split('/').next()) && m != "application/octet-stream" => format!("{}/*", m.split('/').next().unwrap_or("*")),
+        _ => "*/*".into(),
+    }
+}
+
+/// Teilen-Menü des Systems (Windows bzw. Android) mit den Dateien; mit `package` (Android) direkt an diese App.
+fn native_share(hwnd: isize, files: &[PathBuf], package: Option<&str>) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let _ = hwnd;
+        crate::android::share(files, &share_mime(files), None, package)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = package;
+        share_sheet(hwnd, files, &names_str(files))
+    }
+}
+
+/// Gibt es ein Teilen-Menü des Systems?
+const NATIVE_SHARE: bool = cfg!(windows) || cfg!(target_os = "android");
+
 /// Installierte Apps, über die geteilt werden kann (nur gefundene). Blockiert kurz – im Hintergrund aufrufen.
+#[allow(unreachable_code)]
 pub fn detect() -> Vec<App> {
+    #[cfg(target_os = "android")]
+    return android_apps();
     let local = dirs::data_local_dir().unwrap_or_default();
     let roaming = dirs::config_dir().unwrap_or_default();
     let home = dirs::home_dir().unwrap_or_default();
@@ -202,6 +273,8 @@ impl App {
             Via::Outlook(_) => "Outlook, als Anhang".into(),
             Via::Mapi => "Standard-Mailprogramm, als Anhang".into(),
             Via::Cloud(_) => "mit deinem Konto hochladen".into(),
+            Via::Android(_) if App::is_cloud_id(self.id) => "mit der App hochladen".into(),
+            Via::Android(_) => "Datei direkt senden".into(),
         }
     }
     fn is_cloud_id(id: AppId) -> bool {
@@ -294,6 +367,7 @@ fn send_to_app(app: &App, files: &[PathBuf], host: Option<Host>, prog: &Arc<Atom
             Ok(outcome("Outlook geöffnet", "Neue Mail mit Anhang – Empfänger eintragen und senden.", None))
         }
         Via::Mapi => mapi_send(files).map(|t| outcome("E-Mail", t, None)),
+        Via::Android(pkg) => native_share(0, files, Some(pkg)).map(|_| outcome(format!("An {} übergeben", app.name), format!("{} ist geöffnet – dort den Chat bzw. Ort wählen.", app.name), None)),
         Via::Cloud(root) => {
             let dir = root.join("Foldex Freigaben");
             std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -619,29 +693,108 @@ pub enum Host {
     Tmpfiles,
     TempSh,
     Gofile,
+    /// eigener Dienst (Index in `customs()`)
+    Custom(u16),
+}
+
+/// Selbst eingetragener Upload-Dienst (multipart/form-data per POST).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomHost {
+    pub name: String,
+    /// Upload-Adresse, z. B. https://0x0.st
+    pub url: String,
+    /// Name des Dateifelds (leer = „file“)
+    pub field: String,
+    /// weitere Formularfelder, je Zeile `name=wert`
+    pub fields: String,
+    /// Kopfzeilen, je Zeile `Name: Wert` (z. B. ein API-Schlüssel)
+    pub headers: String,
+    /// JSON-Pfad zum Link in der Antwort, z. B. `/data/url` (leer = automatisch: Text-Antwort oder übliche Felder)
+    pub response: String,
+    /// größte Datei in MB (0 = ohne Grenze)
+    pub max_mb: u64,
+    /// Adresse bzw. Datei des Logos (leer = Favicon der Upload-Adresse)
+    pub icon: String,
+}
+
+impl CustomHost {
+    fn domain(&self) -> String {
+        domain_of(&self.url)
+    }
+}
+
+/// Domain einer Adresse (ohne Schema, Port, Pfad).
+fn domain_of(url: &str) -> String {
+    let rest = url.split_once("://").map(|x| x.1).unwrap_or(url);
+    let host = rest.split(['/', '?', '#']).next().unwrap_or("");
+    host.rsplit_once('@').map(|x| x.1).unwrap_or(host).split(':').next().unwrap_or("").to_lowercase()
+}
+
+fn customs_file() -> PathBuf {
+    dirs::config_dir().unwrap_or_default().join("foldex").join("upload-hosts.json")
+}
+
+fn customs_lock() -> &'static RwLock<Vec<CustomHost>> {
+    static C: OnceLock<RwLock<Vec<CustomHost>>> = OnceLock::new();
+    C.get_or_init(|| RwLock::new(std::fs::read(customs_file()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()))
+}
+
+/// Eigene Upload-Dienste.
+pub fn customs() -> Vec<CustomHost> {
+    customs_lock().read().map(|v| v.clone()).unwrap_or_default()
+}
+
+/// Eigene Upload-Dienste speichern.
+pub fn set_customs(v: Vec<CustomHost>) -> Result<(), String> {
+    let f = customs_file();
+    if let Some(d) = f.parent() {
+        let _ = std::fs::create_dir_all(d);
+    }
+    std::fs::write(&f, serde_json::to_vec_pretty(&v).map_err(|e| e.to_string())?).map_err(|e| format!("{}: {e}", f.display()))?;
+    if let Ok(mut c) = customs_lock().write() {
+        *c = v;
+    }
+    Ok(())
 }
 
 impl Host {
     pub const ALL: [Host; 6] = [Host::Catbox, Host::Gofile, Host::TempSh, Host::Litterbox, Host::Uguu, Host::Tmpfiles];
-    pub fn name(self) -> &'static str {
+    /// Alle Dienste: eingebaute, dann eigene.
+    pub fn all() -> Vec<Host> {
+        Host::ALL.into_iter().chain((0..customs().len()).map(|i| Host::Custom(i as u16))).collect()
+    }
+    fn custom(self) -> Option<CustomHost> {
         match self {
-            Host::Catbox => "catbox.moe",
-            Host::Litterbox => "litterbox",
-            Host::Uguu => "uguu.se",
-            Host::Tmpfiles => "tmpfiles.org",
-            Host::TempSh => "temp.sh",
-            Host::Gofile => "Gofile",
+            Host::Custom(i) => customs().get(i as usize).cloned(),
+            _ => None,
+        }
+    }
+    pub fn name(self) -> String {
+        match self {
+            Host::Catbox => "catbox.moe".into(),
+            Host::Litterbox => "litterbox".into(),
+            Host::Uguu => "uguu.se".into(),
+            Host::Tmpfiles => "tmpfiles.org".into(),
+            Host::TempSh => "temp.sh".into(),
+            Host::Gofile => "Gofile".into(),
+            Host::Custom(_) => self.custom().map(|c| if c.name.trim().is_empty() { c.domain() } else { c.name }).unwrap_or_else(|| "Eigener Dienst".into()),
         }
     }
     /// Haltbarkeit und Grenze.
-    pub fn note(self) -> &'static str {
+    pub fn note(self) -> String {
         match self {
-            Host::Catbox => "dauerhaft · bis 200 MB",
-            Host::Litterbox => "72 Stunden · bis 1 GB",
-            Host::Uguu => "3 Stunden · bis 128 MB",
-            Host::Tmpfiles => "48 Stunden · bis 100 MB",
-            Host::TempSh => "3 Tage · bis 4 GB",
-            Host::Gofile => "ohne feste Grenze · solange abgerufen",
+            Host::Catbox => "dauerhaft · bis 200 MB".into(),
+            Host::Litterbox => "72 Stunden · bis 1 GB".into(),
+            Host::Uguu => "3 Stunden · bis 128 MB".into(),
+            Host::Tmpfiles => "48 Stunden · bis 100 MB".into(),
+            Host::TempSh => "3 Tage · bis 4 GB".into(),
+            Host::Gofile => "ohne feste Grenze · solange abgerufen".into(),
+            Host::Custom(_) => match self.custom() {
+                Some(c) if c.max_mb > 0 => format!("eigener Dienst · {} · bis {} MB", c.domain(), c.max_mb),
+                Some(c) => format!("eigener Dienst · {}", c.domain()),
+                None => "eigener Dienst".into(),
+            },
         }
     }
     fn max(self) -> u64 {
@@ -652,6 +805,7 @@ impl Host {
             Host::Tmpfiles => 100 * MB,
             Host::TempSh => 4096 * MB,
             Host::Gofile => 10 * 1024 * MB,
+            Host::Custom(_) => self.custom().map(|c| if c.max_mb == 0 { u64::MAX } else { c.max_mb * MB }).unwrap_or(0),
         }
     }
     fn color(self) -> Color32 {
@@ -662,7 +816,27 @@ impl Host {
             Host::Tmpfiles => 0x2f9e8f,
             Host::TempSh => 0xd98c2b,
             Host::Gofile => 0x4a90e2,
+            Host::Custom(i) => [0x5c7cfa, 0x12b886, 0xf76707, 0xae3ec9, 0x1c7ed6, 0xe64980][i as usize % 6],
         })
+    }
+    /// Domain für das Logo.
+    fn domain(self) -> String {
+        match self {
+            Host::Catbox => "catbox.moe".into(),
+            Host::Litterbox => "litterbox.catbox.moe".into(),
+            Host::Uguu => "uguu.se".into(),
+            Host::Tmpfiles => "tmpfiles.org".into(),
+            Host::TempSh => "temp.sh".into(),
+            Host::Gofile => "gofile.io".into(),
+            Host::Custom(_) => self.custom().map(|c| c.domain()).unwrap_or_default(),
+        }
+    }
+    /// Schlüssel des Logos (Textur und Zwischenspeicher).
+    fn icon_key(self) -> String {
+        match self.custom() {
+            Some(c) if !c.icon.trim().is_empty() => format!("hosticon:{}", c.icon.trim()),
+            _ => format!("hosticon:{}", self.domain()),
+        }
     }
     /// Nimmt der Dienst diese Datei an?
     pub fn accepts(self, p: &Path) -> bool {
@@ -680,11 +854,73 @@ impl Host {
             Host::Tmpfiles => &[Host::TempSh, Host::Uguu],
             Host::TempSh => &[Host::Gofile, Host::Litterbox],
             Host::Gofile => &[Host::TempSh, Host::Catbox],
+            Host::Custom(_) => &[Host::Catbox, Host::TempSh],
         }
     }
     /// Dienst für Messenger-Links: dauerhaft bevorzugt.
     fn for_links(files: &[PathBuf]) -> Option<Host> {
         [Host::Catbox, Host::TempSh, Host::Gofile].into_iter().find(|h| files.iter().all(|p| h.accepts(p)))
+    }
+}
+
+/// Logo eines Dienstes: aus dem Zwischenspeicher, sonst Favicon der Seite (bzw. das eingetragene Logo) laden.
+/// Blockiert – im Hintergrund aufrufen.
+fn host_icon(h: Host) -> Option<egui::ColorImage> {
+    let key = h.icon_key();
+    let safe: String = key.chars().map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '_' }).collect();
+    let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir).join("foldex").join("host-icons").join(format!("{safe}.png"));
+    let to_color = |img: image::DynamicImage| {
+        let img = img.resize(64, 64, image::imageops::FilterType::Lanczos3).to_rgba8();
+        egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw())
+    };
+    if let Ok(img) = image::open(&cache) {
+        return Some(to_color(img));
+    }
+    let custom_icon = h.custom().map(|c| c.icon.trim().to_string()).filter(|i| !i.is_empty());
+    let img = if let Some(i) = custom_icon.as_ref().filter(|i| !i.starts_with("http")) {
+        image::open(i).ok()
+    } else {
+        let domain = h.domain();
+        let mut urls: Vec<String> = custom_icon.into_iter().collect();
+        // Subdomain ohne eigenes Logo (litterbox.catbox.moe) → Logo der Hauptdomain
+        let mut ds = vec![domain.clone()];
+        if domain.matches('.').count() >= 2 {
+            ds.push(domain.split_once('.').map(|x| x.1.to_string()).unwrap_or_default());
+        }
+        for d in ds.iter().filter(|d| !d.is_empty()) {
+            for f in ["apple-touch-icon.png", "favicon.png", "favicon.ico"] {
+                urls.push(format!("https://{d}/{f}"));
+            }
+        }
+        let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(6)).user_agent(UA).build();
+        urls.iter().find_map(|u| {
+            let r = agent.get(u).call().ok()?;
+            let mut b = Vec::new();
+            r.into_reader().take(2 * MB).read_to_end(&mut b).ok()?;
+            image::load_from_memory(&b).ok().filter(|i| i.width() >= 16)
+        })
+    }?;
+    if let Some(d) = cache.parent() {
+        let _ = std::fs::create_dir_all(d);
+    }
+    let _ = img.resize(64, 64, image::imageops::FilterType::Lanczos3).save(&cache);
+    Some(to_color(img))
+}
+
+/// Link aus der Antwort eines eigenen Dienstes: JSON-Pfad, sonst übliche Felder, sonst der Text selbst.
+fn link_from_response(body: &str, pointer: &str) -> Option<String> {
+    let body = body.trim();
+    let v = serde_json::from_str::<Value>(body).ok();
+    if !pointer.trim().is_empty() {
+        let p = pointer.trim();
+        let p = if p.starts_with('/') { p.to_string() } else { format!("/{}", p.replace('.', "/")) };
+        return v?.pointer(&p).and_then(Value::as_str).map(str::to_string);
+    }
+    match v {
+        Some(v) => ["/url", "/link", "/data/url", "/data/link", "/data/downloadPage", "/files/0/url", "/file/url/full", "/image/url"]
+            .iter()
+            .find_map(|p| v.pointer(p).and_then(Value::as_str).filter(|s| s.starts_with("http")).map(str::to_string)),
+        None => body.lines().map(str::trim).find(|l| l.starts_with("https://") || l.starts_with("http://")).map(str::to_string),
     }
 }
 
@@ -765,10 +1001,15 @@ fn http_err(e: ureq::Error, who: &str) -> String {
 }
 
 /// Datei als multipart/form-data senden (feste Länge, keine Weiterleitungen) und die Antwort als Text liefern.
-fn send_multipart(url: &str, fields: &[(&str, &str)], field: &str, p: &Path, prog: Arc<AtomicU64>, cancel: Arc<AtomicBool>, who: &str) -> Result<String, String> {
+#[allow(clippy::too_many_arguments)]
+fn send_multipart(url: &str, fields: &[(&str, &str)], field: &str, p: &Path, prog: Arc<AtomicU64>, cancel: Arc<AtomicBool>, who: &str, headers: &[(&str, &str)]) -> Result<String, String> {
     let agent = ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(15)).timeout(Duration::from_secs(3600)).user_agent(UA).redirects(0).build();
     let (ct, len, body) = multipart(fields, field, p)?;
-    let r = agent.post(url).set("Content-Type", &ct).set("Content-Length", &len.to_string()).send(Counted { inner: body, prog, cancel: cancel.clone() });
+    let mut req = agent.post(url).set("Content-Type", &ct).set("Content-Length", &len.to_string());
+    for (k, v) in headers {
+        req = req.set(k, v);
+    }
+    let r = req.send(Counted { inner: body, prog, cancel: cancel.clone() });
     if cancel.load(Relaxed) {
         return Err("abgebrochen".into());
     }
@@ -781,7 +1022,8 @@ pub fn upload(host: Host, p: &Path, prog: Arc<AtomicU64>, cancel: Arc<AtomicBool
         return Err(format!("{} nimmt diese Datei nicht an (Art oder Größe)", host.name()));
     }
     let who = host.name();
-    let send = |url: &str, fields: &[(&str, &str)], field: &str| send_multipart(url, fields, field, p, prog.clone(), cancel.clone(), who);
+    let who = who.as_str();
+    let send = |url: &str, fields: &[(&str, &str)], field: &str| send_multipart(url, fields, field, p, prog.clone(), cancel.clone(), who, &[]);
     let json = |t: &str| serde_json::from_str::<Value>(t).map_err(|_| format!("{who}: unerwartete Antwort: {}", t.chars().take(160).collect::<String>()));
     let link = match host {
         Host::Catbox => send("https://catbox.moe/user/api.php", &[("reqtype", "fileupload")], "fileToUpload")?,
@@ -800,6 +1042,17 @@ pub fn upload(host: Host, p: &Path, prog: Arc<AtomicU64>, cancel: Arc<AtomicBool
         Host::Gofile => {
             let v = json(&send("https://upload.gofile.io/uploadfile", &[], "file")?)?;
             v.pointer("/data/downloadPage").and_then(Value::as_str).map(str::to_string).ok_or_else(|| format!("{who}: {v}"))?
+        }
+        Host::Custom(_) => {
+            let c = host.custom().ok_or("Der eigene Dienst wurde entfernt")?;
+            let pairs = |t: &str, sep: char| -> Vec<(String, String)> { t.lines().filter_map(|l| l.split_once(sep)).map(|(k, v)| (k.trim().to_string(), v.trim().to_string())).filter(|(k, _)| !k.is_empty()).collect() };
+            let fields = pairs(&c.fields, '=');
+            let headers = pairs(&c.headers, ':');
+            let f: Vec<(&str, &str)> = fields.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+            let h: Vec<(&str, &str)> = headers.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+            let field = if c.field.trim().is_empty() { "file" } else { c.field.trim() };
+            let body = send_multipart(c.url.trim(), &f, field, p, prog.clone(), cancel.clone(), who, &h)?;
+            link_from_response(&body, &c.response).ok_or_else(|| format!("{who}: kein Link in der Antwort gefunden: {}", body.trim().chars().take(160).collect::<String>()))?
         }
     };
     let link = link.trim().to_string();
@@ -872,6 +1125,15 @@ struct Job {
     for_wa: bool,
 }
 
+/// Eigenen Upload-Dienst anlegen bzw. bearbeiten.
+struct HostDialog {
+    /// Index beim Bearbeiten
+    edit: Option<usize>,
+    draft: CustomHost,
+    max_text: String,
+    err: Option<String>,
+}
+
 /// Geräteauswahl für LocalSend.
 struct Picker {
     disc: Discovery,
@@ -894,6 +1156,10 @@ pub struct ShareWin {
     wa: Option<WaDialog>,
     /// Foldex-Fenster (Windows-Teilen)
     hwnd: isize,
+    /// Logos der Upload-Dienste (kommen nacheinander aus dem Hintergrund)
+    icon_tx: Sender<(String, egui::ColorImage)>,
+    icon_rx: Receiver<(String, egui::ColorImage)>,
+    host_dlg: Option<HostDialog>,
 }
 
 impl ShareWin {
@@ -909,18 +1175,40 @@ impl ShareWin {
         let c2 = ctx.clone();
         std::thread::spawn(move || {
             let apps = detect();
-            let icons = apps.iter().filter_map(|a| a.icon.clone()).filter_map(|n| crate::preview::shell_icon(&n, 64).map(|i| (n, i))).collect();
+            let icons = apps.iter().filter_map(|a| a.icon.clone()).filter_map(|n| app_icon_image(&n).map(|i| (n, i))).collect();
             let _ = tx.send((apps, icons));
             c2.request_repaint();
         });
         let (ttx, trx) = mpsc::channel();
         let (first, c3) = (files.first().cloned(), ctx.clone());
         std::thread::spawn(move || {
-            let img = first.and_then(|f| crate::preview::shell_image(&f, 96).or_else(|| crate::preview::shell_icon(&f.to_string_lossy(), 64)));
+            let img = first.and_then(|f| {
+                crate::preview::shell_image(&f, 96).or_else(|| crate::preview::shell_icon(&f.to_string_lossy(), 64)).or_else(|| {
+                    // ohne Windows-Shell: Bilder selbst verkleinern
+                    let i = image::open(&f).ok()?.thumbnail(96, 96).to_rgba8();
+                    Some(egui::ColorImage::from_rgba_unmultiplied([i.width() as usize, i.height() as usize], i.as_raw()))
+                })
+            });
             let _ = ttx.send(img);
             c3.request_repaint();
         });
-        ShareWin { files, total, kind: kinds.join(", "), apps: Vec::new(), apps_rx: Some(rx), icons: HashMap::new(), thumb: None, thumb_rx: Some(trx), picker: None, job: None, result: None, copied: false, wa: None, hwnd }
+        let (icon_tx, icon_rx) = mpsc::channel();
+        let w = ShareWin { files, total, kind: kinds.join(", "), apps: Vec::new(), apps_rx: Some(rx), icons: HashMap::new(), thumb: None, thumb_rx: Some(trx), picker: None, job: None, result: None, copied: false, wa: None, hwnd, icon_tx, icon_rx, host_dlg: None };
+        w.load_icons(Host::all(), ctx);
+        w
+    }
+
+    /// Logos der Dienste im Hintergrund laden (je Dienst ein Thread, gecacht auf der Platte).
+    fn load_icons(&self, hosts: Vec<Host>, ctx: &egui::Context) {
+        for h in hosts {
+            let (tx, c) = (self.icon_tx.clone(), ctx.clone());
+            std::thread::spawn(move || {
+                if let Some(img) = host_icon(h) {
+                    let _ = tx.send((h.icon_key(), img));
+                    c.request_repaint();
+                }
+            });
+        }
     }
 
     /// Nur für Bildschirmfotos (FOLDEX_SHOT): Fortschritt bzw. Ergebnis-Popup in einem festen Zustand zeigen.
@@ -1049,6 +1337,10 @@ impl ShareWin {
             }
             self.apps_rx = None;
         }
+        while let Ok((k, img)) = self.icon_rx.try_recv() {
+            let t = ctx.load_texture(format!("share-{k}"), img, egui::TextureOptions::LINEAR);
+            self.icons.insert(k, t);
+        }
         if let Some(Ok(img)) = self.thumb_rx.as_ref().map(|r| r.try_recv()) {
             self.thumb = img.map(|i| ctx.load_texture("share-thumb", i, egui::TextureOptions::LINEAR));
             self.thumb_rx = None;
@@ -1094,9 +1386,11 @@ impl ShareWin {
     pub fn ui(&mut self, ctx: &egui::Context, th: &Theme) -> bool {
         self.poll(ctx);
         let mut open = true;
-        let frame = egui::Frame::window(&ctx.style()).fill(th.panel).rounding(Rounding::same(12.0)).stroke(Stroke::new(1.0, th.line)).inner_margin(Margin::same(18.0));
+        let frame = egui::Frame::window(&ctx.style()).fill(th.panel).rounding(Rounding::same(12.0)).stroke(Stroke::new(1.0, th.line)).inner_margin(Margin::same(if ctx.screen_rect().width() < 560.0 { 12.0 } else { 18.0 }));
         let max_h = (ctx.screen_rect().height() - 60.0).clamp(320.0, 760.0);
-        let busy = self.job.is_some() || self.result.is_some() || self.wa.is_some() || self.picker.is_some();
+        let phone = ctx.screen_rect().width() < 560.0;
+        let sw = ctx.screen_rect().width() - if phone { 24.0 } else { 52.0 };
+        let busy = self.job.is_some() || self.result.is_some() || self.wa.is_some() || self.picker.is_some() || self.host_dlg.is_some();
         // Esc schließt (außer während etwas läuft)
         if !busy && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             open = false;
@@ -1108,9 +1402,9 @@ impl ShareWin {
             .resizable(true)
             .pivot(egui::Align2::CENTER_CENTER)
             .default_pos(ctx.screen_rect().center())
-            .default_width(660.0)
+            .default_width(660f32.min(sw))
             .default_height(max_h.min(700.0))
-            .min_width(460.0)
+            .min_width(460f32.min(sw))
             .max_height(max_h)
             .show(ctx, |ui| {
                 // Kopf wie bei den anderen Foldex-Fenstern: Titel links, Schließen rechts
@@ -1119,6 +1413,16 @@ impl ShareWin {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.add_enabled_ui(!busy, |ui| close_button(ui, th)).inner.clicked() {
                             open = false;
+                        }
+                        // Teilen-Menü des Systems (Windows-Teilen bzw. Android-Auswahl)
+                        if NATIVE_SHARE && !self.files.is_empty() {
+                            let os = if cfg!(target_os = "android") { "Android" } else { "Windows" };
+                            let b = ui.add_enabled(!busy, egui::Button::new(egui::RichText::new("Nochmal teilen").size(13.0)).min_size(vec2(0.0, if cfg!(target_os = "android") { 40.0 } else { 30.0 })).rounding(8.0));
+                            if b.on_hover_text(format!("Teilen-Menü von {os} öffnen")).clicked() {
+                                if let Err(e) = native_share(self.hwnd, &self.files, None) {
+                                    self.result = Some(Err(format!("Teilen-Menü von {os}: {e}")));
+                                }
+                            }
                         }
                     });
                 });
@@ -1130,6 +1434,7 @@ impl ShareWin {
             });
         self.picker_ui(ctx, th);
         self.wa_ui(ctx, th);
+        self.host_dlg_ui(ctx, th);
         self.progress_ui(ctx, th);
         self.result_ui(ctx, th);
         if !open {
@@ -1154,7 +1459,7 @@ impl ShareWin {
             .title_bar(false)
             .frame(Self::popup_frame(ctx, th, th.line))
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .fixed_size([380.0, 0.0])
+            .fixed_size([380f32.min(ctx.screen_rect().width() - 24.0), 0.0])
             .order(egui::Order::Tooltip)
             .show(ctx, |ui| {
                 ui.label(egui::RichText::new(&j.title).size(15.0).strong());
@@ -1191,7 +1496,7 @@ impl ShareWin {
             .title_bar(false)
             .frame(Self::popup_frame(ctx, th, accent))
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .fixed_size([440.0, 0.0])
+            .fixed_size([440f32.min(ctx.screen_rect().width() - 24.0), 0.0])
             .order(egui::Order::Tooltip)
             .show(ctx, |ui| {
                 match &r {
@@ -1280,7 +1585,7 @@ impl ShareWin {
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .fixed_size([470.0, 0.0])
+            .fixed_size([470f32.min(ctx.screen_rect().width() - 24.0), 0.0])
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
                 ui.add(egui::Label::new(egui::RichText::new(names_str(&files)).size(12.5).color(th.sub)).truncate());
@@ -1413,7 +1718,7 @@ impl ShareWin {
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .fixed_size([500.0, 0.0])
+            .fixed_size([500f32.min(ctx.screen_rect().width() - 24.0), 0.0])
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
                 // Kopf: LocalSend-Zeichen, Titel, als wer gesendet wird, Schließen
@@ -1571,7 +1876,7 @@ impl ShareWin {
         // Nur installierte Apps; Link-Apps nur, wenn ein Dienst die Datei annimmt; Bereiche ohne App entfallen
         let direct: Vec<App> = self.apps.iter().filter(|a| !App::is_cloud_id(a.id) && (!a.needs_link() || link_ok)).cloned().collect();
         let cloud: Vec<App> = self.apps.iter().filter(|a| App::is_cloud_id(a.id)).cloned().collect();
-        for (title, sub, list) in [("Senden", "Über deine installierten Apps und ihre Konten", &direct), ("In die Cloud", "Die Cloud-App lädt mit deinem Konto hoch – Link danach über „Freigeben“ im Explorer", &cloud)] {
+        for (title, sub, list) in [("Senden", "Über deine installierten Apps und ihre Konten", &direct), ("In die Cloud", if cfg!(target_os = "android") { "Die App lädt mit deinem Konto hoch" } else { "Die Cloud-App lädt mit deinem Konto hoch – Link danach über „Freigeben“ im Explorer" }, &cloud)] {
             if list.is_empty() {
                 continue;
             }
@@ -1586,15 +1891,52 @@ impl ShareWin {
         }
 
         // Link ohne Anmeldung: nur Dienste, die alle gewählten Dateien annehmen
-        let hosts: Vec<Host> = Host::ALL.into_iter().filter(|h| self.files.iter().all(|p| h.accepts(p))).collect();
-        if !hosts.is_empty() {
-            group(ui, "Link erstellen", "Ohne Konto und Anmeldung – der Link wird gleich kopiert. Jeder mit dem Link kann die Datei laden.");
-            grid(ui, cols, hosts.len(), |ui, k| {
-                let h = hosts[k];
-                if tile(ui, th, tile_w, h.name(), h.note(), None, h.color()).clicked() {
-                    pick = Some(Target::Upload(h));
+        let hosts: Vec<Host> = Host::all().into_iter().filter(|h| self.files.iter().all(|p| h.accepts(p))).collect();
+        let mut dlg: Option<HostDialog> = None;
+        let mut remove: Option<usize> = None;
+        group(ui, "Link erstellen", "Ohne Konto und Anmeldung – der Link wird gleich kopiert. Jeder mit dem Link kann die Datei laden.");
+        // letzte Kachel: eigenen Dienst hinzufügen
+        grid(ui, cols, hosts.len() + 1, |ui, k| {
+            let Some(&h) = hosts.get(k) else {
+                if tile(ui, th, tile_w, "+ Eigener Dienst", "Upload-Adresse selbst eintragen", None, th.accent).clicked() {
+                    dlg = Some(HostDialog { edit: None, draft: CustomHost { field: "file".into(), ..Default::default() }, max_text: String::new(), err: None });
                 }
-            });
+                return;
+            };
+            let resp = tile(ui, th, tile_w, &h.name(), &h.note(), self.icons.get(&h.icon_key()), h.color());
+            if resp.clicked() {
+                pick = Some(Target::Upload(h));
+            }
+            if let Host::Custom(i) = h {
+                resp.context_menu(|ui| {
+                    if ui.button("Bearbeiten …").clicked() {
+                        if let Some(c) = h.custom() {
+                            let max_text = if c.max_mb > 0 { c.max_mb.to_string() } else { String::new() };
+                            dlg = Some(HostDialog { edit: Some(i as usize), draft: c, max_text, err: None });
+                        }
+                        ui.close_menu();
+                    }
+                    if ui.button("Entfernen").clicked() {
+                        remove = Some(i as usize);
+                        ui.close_menu();
+                    }
+                });
+            }
+        });
+        if hosts.iter().any(|h| matches!(h, Host::Custom(_))) {
+            ui.label(egui::RichText::new("Eigene Dienste: Rechtsklick auf die Kachel zum Bearbeiten oder Entfernen.").size(11.0).color(th.sub));
+        }
+        if dlg.is_some() {
+            self.host_dlg = dlg;
+        }
+        if let Some(i) = remove {
+            let mut v = customs();
+            if i < v.len() {
+                v.remove(i);
+                if let Err(e) = set_customs(v) {
+                    self.result = Some(Err(e));
+                }
+            }
         }
 
         match pick {
@@ -1605,6 +1947,112 @@ impl ShareWin {
             }
             Some(t) => self.start(t, ctx),
             None => {}
+        }
+    }
+}
+
+impl ShareWin {
+    /// Dialog: eigenen Upload-Dienst eintragen.
+    fn host_dlg_ui(&mut self, ctx: &egui::Context, th: &Theme) {
+        let Some(d) = &mut self.host_dlg else { return };
+        let mut open = true;
+        let mut save = false;
+        let mut cancel = false;
+        let title = if d.edit.is_some() { "Upload-Dienst bearbeiten" } else { "Eigener Upload-Dienst" };
+        egui::Window::new(title)
+            .open(&mut open)
+            .frame(Self::popup_frame(ctx, th, th.accent.gamma_multiply(0.6)))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .fixed_size([480f32.min(ctx.screen_rect().width() - 24.0), 0.0])
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                ui.label(egui::RichText::new("Foldex sendet die Datei per POST als Formular (multipart/form-data) und nimmt den Link aus der Antwort.").size(12.0).color(th.sub));
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new("Vorlage:").size(12.0).color(th.sub));
+                    for (n, url, field, resp) in [("0x0.st", "https://0x0.st", "file", ""), ("x0.at", "https://x0.at", "file", ""), ("bashupload", "https://bashupload.com", "file", "")] {
+                        if ui.small_button(n).clicked() {
+                            d.draft = CustomHost { name: n.into(), url: url.into(), field: field.into(), response: resp.into(), ..Default::default() };
+                            d.max_text.clear();
+                        }
+                    }
+                });
+                ui.add_space(6.0);
+                let w = ui.available_width();
+                egui::Grid::new("host_form").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                    let mut row = |ui: &mut egui::Ui, label: &str, val: &mut String, hint: &str, multi: bool| {
+                        ui.label(egui::RichText::new(label).size(12.5));
+                        let e = if multi { egui::TextEdit::multiline(val).desired_rows(2) } else { egui::TextEdit::singleline(val) };
+                        ui.add(e.hint_text(hint).desired_width(w - 150.0));
+                        ui.end_row();
+                    };
+                    row(ui, "Name", &mut d.draft.name, "z. B. Mein Server", false);
+                    row(ui, "Upload-Adresse", &mut d.draft.url, "https://…", false);
+                    row(ui, "Dateifeld", &mut d.draft.field, "file", false);
+                    row(ui, "Weitere Felder", &mut d.draft.fields, "je Zeile name=wert", true);
+                    row(ui, "Kopfzeilen", &mut d.draft.headers, "je Zeile Name: Wert (z. B. API-Schlüssel)", true);
+                    row(ui, "Link in Antwort", &mut d.draft.response, "leer = automatisch, sonst z. B. /data/url", false);
+                    row(ui, "Max. Größe (MB)", &mut d.max_text, "leer = ohne Grenze", false);
+                    row(ui, "Logo", &mut d.draft.icon, "leer = Favicon der Seite, sonst Adresse oder Datei", false);
+                });
+                if let Some(e) = &d.err {
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new(e).size(12.0).color(th.danger));
+                }
+                ui.add_space(10.0);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.add(egui::Button::new(egui::RichText::new("Speichern").color(Color32::WHITE)).fill(th.accent).min_size(vec2(110.0, 30.0))).clicked() {
+                        save = true;
+                    }
+                    if ui.add(egui::Button::new("Abbrechen").min_size(vec2(100.0, 30.0))).clicked() {
+                        cancel = true;
+                    }
+                });
+            });
+        if cancel {
+            open = false;
+        }
+        if save {
+            let url = d.draft.url.trim();
+            if !(url.starts_with("https://") || url.starts_with("http://")) || domain_of(url).is_empty() {
+                d.err = Some("Bitte eine Upload-Adresse mit https:// eintragen.".into());
+            } else if !d.max_text.trim().is_empty() && d.max_text.trim().parse::<u64>().is_err() {
+                d.err = Some("Max. Größe: bitte eine Zahl in MB.".into());
+            } else {
+                let mut c = d.draft.clone();
+                c.url = url.to_string();
+                c.max_mb = d.max_text.trim().parse().unwrap_or(0);
+                if c.name.trim().is_empty() {
+                    c.name = c.domain();
+                }
+                let mut v = customs();
+                let idx = match d.edit {
+                    Some(i) if i < v.len() => {
+                        v[i] = c;
+                        i
+                    }
+                    _ => {
+                        v.push(c);
+                        v.len() - 1
+                    }
+                };
+                match set_customs(v) {
+                    Ok(()) => {
+                        open = false;
+                        self.load_icons(vec![Host::Custom(idx as u16)], ctx);
+                    }
+                    Err(e) => {
+                        if let Some(d) = &mut self.host_dlg {
+                            d.err = Some(e);
+                        }
+                    }
+                }
+            }
+        }
+        if !open {
+            self.host_dlg = None;
         }
     }
 }
@@ -1706,7 +2154,7 @@ mod tests {
             s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len()).as_bytes()).unwrap();
             raw
         });
-        let link = send_multipart(&url, &[("reqtype", "fileupload"), ("time", "72h")], "fileToUpload", &f, Arc::new(AtomicU64::new(0)), Arc::new(AtomicBool::new(false)), "Test");
+        let link = send_multipart(&url, &[("reqtype", "fileupload"), ("time", "72h")], "fileToUpload", &f, Arc::new(AtomicU64::new(0)), Arc::new(AtomicBool::new(false)), "Test", &[]);
         assert_eq!(link.unwrap(), "https://x.example/abc");
         let raw = srv.join().unwrap();
         let h = raw.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
@@ -1761,6 +2209,17 @@ mod tests {
         let e = send_to_app(&wa, std::slice::from_ref(&exe), None, &prog, &Arc::new(AtomicBool::new(false))).unwrap_err();
         assert!(e.contains("Kein Upload-Dienst"), "{e}");
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn custom_hosts_and_links() {
+        assert_eq!(domain_of("https://user@Files.Example.com:8443/up?x=1"), "files.example.com");
+        assert_eq!(domain_of("https://0x0.st"), "0x0.st");
+        assert_eq!(link_from_response("https://0x0.st/abc.png\n", "").as_deref(), Some("https://0x0.st/abc.png"));
+        assert_eq!(link_from_response(r#"{"data":{"url":"https://x.y/1"}}"#, "").as_deref(), Some("https://x.y/1"));
+        assert_eq!(link_from_response(r#"{"ok":true,"result":{"dl":"https://x.y/2"}}"#, "result.dl").as_deref(), Some("https://x.y/2"));
+        assert_eq!(link_from_response(r#"{"ok":true,"result":{"dl":"https://x.y/2"}}"#, "/result/dl").as_deref(), Some("https://x.y/2"));
+        assert_eq!(link_from_response("Fehler", ""), None);
     }
 
     #[test]

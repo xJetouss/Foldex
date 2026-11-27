@@ -213,12 +213,63 @@ fn fit_w(ctx: &egui::Context, w: f32) -> f32 {
 }
 
 /// Einträge der Dateiliste: auf Android nur Tippen (langes Drücken = Kontextmenü statt Ziehen)
-fn item_sense() -> Sense {
-    if cfg!(target_os = "android") {
+/// Handy: nur markierte Einträge lassen sich ziehen (verschieben) – sonst scrollt das Wischen die Liste.
+fn item_sense(selected: bool) -> Sense {
+    if cfg!(target_os = "android") && !selected {
         Sense::click()
     } else {
         Sense::click_and_drag()
     }
+}
+
+/// Textur aus RGBA-Daten (Plugin-Logos), einmal erzeugt und gemerkt.
+fn plugin_texture(ctx: &egui::Context, key: &str, load: impl FnOnce() -> Option<(usize, Vec<u8>)>) -> Option<egui::TextureHandle> {
+    static CACHE: std::sync::Mutex<Option<HashMap<String, Option<egui::TextureHandle>>>> = std::sync::Mutex::new(None);
+    let mut g = CACHE.lock().ok()?;
+    let map = g.get_or_insert_with(HashMap::new);
+    if let Some(t) = map.get(key) {
+        return t.clone();
+    }
+    let t = load().filter(|(px, rgba)| *px > 0 && rgba.len() == px * px * 4).map(|(px, rgba)| ctx.load_texture(format!("plugin-{key}"), egui::ColorImage::from_rgba_unmultiplied([px, px], &rgba), egui::TextureOptions::LINEAR));
+    map.insert(key.to_string(), t.clone());
+    t
+}
+
+/// Zeile im Plugin-Katalog: Logo links, Name und Beschreibung, Knopf rechts.
+fn catalog_row(ui: &mut egui::Ui, th: Theme, icon: Option<&egui::TextureHandle>, name: &str, sub: &str, reserve: f32, right: impl FnOnce(&mut egui::Ui)) {
+    egui::Frame::none().fill(th.field).rounding(10.0).inner_margin(Margin::symmetric(10.0, 8.0)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        let narrow = ui.available_width() < reserve + 220.0;
+        let mut right = Some(right);
+        ui.horizontal(|ui| {
+            let (r, _) = ui.allocate_exact_size(vec2(40.0, 40.0), Sense::hover());
+            match icon {
+                Some(t) => {
+                    ui.painter().image(t.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                }
+                None => {
+                    ui.painter().rect_filled(r, 9.0, th.accent.gamma_multiply(0.8));
+                    ui::draw(ui.painter(), r.shrink(10.0), Ic::Command, Color32::WHITE);
+                }
+            }
+            ui.add_space(6.0);
+            ui.vertical(|ui| {
+                ui.set_width((ui.available_width() - if narrow { 0.0 } else { reserve }).max(80.0));
+                ui.label(egui::RichText::new(name).size(14.5).strong());
+                ui.add(egui::Label::new(egui::RichText::new(sub).size(12.0).color(th.sub)).wrap());
+                if narrow {
+                    if let Some(f) = right.take() {
+                        ui.add_space(4.0);
+                        ui.horizontal(f);
+                    }
+                }
+            });
+            if let Some(f) = right.take() {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), f);
+            }
+        });
+    });
+    ui.add_space(6.0);
 }
 
 /// Hauptknopf eines Fensters (Akzentfarbe), gleich groß wie die übrigen Knöpfe.
@@ -254,7 +305,9 @@ fn setup_fonts(ctx: &egui::Context, custom: &str) {
     // Linux: die übliche Systemschrift der Distribution (sonst egui-Standardschrift)
     #[cfg(not(windows))]
     {
-        const FONTS: [&str; 8] = [
+        const FONTS: [&str; 10] = [
+            "/system/fonts/Roboto-Regular.ttf",
+            "/system/fonts/RobotoStatic-Regular.ttf",
             "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
             "/usr/share/fonts/noto/NotoSans-Regular.ttf",
             "/usr/share/fonts/google-noto/NotoSans-Regular.ttf",
@@ -371,6 +424,15 @@ fn theme_pref(ctx: &egui::Context, t: u8) {
     let p = match t {
         1 => egui::ThemePreference::Light,
         2 => egui::ThemePreference::Dark,
+        // Android meldet egui den Dunkelmodus nicht: selbst nachsehen (passt dann zu den Symbolen der Statusleiste)
+        #[cfg(target_os = "android")]
+        _ if android::night_mode().is_some() => {
+            if android::night_mode() == Some(true) {
+                egui::ThemePreference::Dark
+            } else {
+                egui::ThemePreference::Light
+            }
+        }
         _ => egui::ThemePreference::System,
     };
     ctx.set_theme(p);
@@ -1273,6 +1335,10 @@ struct App {
     close_menu_req: bool,
     /// Handy: Einstellungen zeigen die Liste der Bereiche (statt eines Bereichs)
     settings_menu: bool,
+    /// Android: ganzer Bildschirm (mit Status- und Gestenleiste) – dort wird der Hintergrund gemalt
+    full_rect: Option<Rect>,
+    /// Handy: Aktionsfeld unten nach langem Drücken (Einträge bzw. leere Stelle = leere Liste)
+    sheet: Option<Vec<PathBuf>>,
     /// Einstellungen: Befehl, dessen Tastenkürzel gerade aufgenommen wird; ggf. Konflikt
     key_rec: Option<&'static str>,
     key_conflict: Option<(&'static str, Shortcut, &'static str)>,
@@ -1590,6 +1656,8 @@ impl App {
             menu_seen: 0,
             close_menu_req: false,
             settings_menu: true,
+            full_rect: None,
+            sheet: None,
             key_rec: None,
             key_conflict: None,
             git_st: None,
@@ -3945,7 +4013,7 @@ fn icon_for(label: &str) -> Option<Ic> {
 /// Bereiche der Einstellungen: (Titel = Titel der Karte, Symbol, Kurzbeschreibung).
 /// Bereiche der Einstellungen für dieses System: auf Android nur, was dort funktioniert
 fn settings_pages() -> Vec<(&'static str, Ic, &'static str)> {
-    const NOT_ON_ANDROID: [&str; 8] = ["Terminal", "Editoren", "Lokale Modelle", "Bildeditor-KI", "Plugins", "Tastenkürzel", "Import / Export", "Deinstallieren"];
+    const NOT_ON_ANDROID: [&str; 7] = ["Terminal", "Editoren", "Lokale Modelle", "Bildeditor-KI", "Tastenkürzel", "Import / Export", "Deinstallieren"];
     SETTINGS_PAGES.iter().copied().filter(|p| !cfg!(target_os = "android") || !NOT_ON_ANDROID.contains(&p.0)).collect()
 }
 
@@ -8841,6 +8909,161 @@ impl App {
     }
 
     // ── Kontextmenüs ──
+    /// Handy: Aktionsfeld unten – große Kacheln für häufige Aktionen, darunter Listenzeilen (statt eines
+    /// kleinen Kontextmenüs, das mit dem Finger schwer zu treffen ist)
+    fn ui_sheet(&mut self, ctx: &egui::Context, acts: &mut Vec<Act>) {
+        let Some(paths) = self.sheet.clone() else { return };
+        let th = self.th;
+        let cwd = self.pane().cwd.clone();
+        let screen = ctx.screen_rect();
+        let mut close = false;
+        // abgedunkelter Hintergrund: Tippen daneben schließt
+        egui::Area::new(Id::new("sheet_dim")).order(egui::Order::Foreground).fixed_pos(screen.min).show(ctx, |ui| {
+            let (r, resp) = ui.allocate_exact_size(screen.size(), Sense::click());
+            ui.painter().rect_filled(r, 0.0, Color32::from_black_alpha(110));
+            if resp.clicked() {
+                close = true;
+            }
+        });
+        let bg = paths.is_empty();
+        let single = paths.len() == 1;
+        let dir = single && fsx::is_dir(&paths[0]);
+        let name = if bg {
+            self.pane().title()
+        } else if single {
+            paths[0].file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+        } else {
+            format!("{} Elemente", paths.len())
+        };
+        let can_paste = self.clip.is_some() || clip::has_files();
+        // Kacheln: (Symbol, Text, Aktion)
+        let mut tiles: Vec<(Ic, &str, Option<Act>)> = Vec::new();
+        let mut rows: Vec<(Ic, String, Option<Act>)> = Vec::new();
+        if bg {
+            tiles.push((Ic::NewFolder, "Neuer Ordner", Some(Act::NewFolder)));
+            tiles.push((Ic::Docs, "Textdatei", Some(Act::NewFile)));
+            tiles.push((Ic::Paste, "Einfügen", can_paste.then(|| Act::PasteInto(cwd.clone()))));
+            tiles.push((Ic::Select, "Alle wählen", Some(Act::SelectAll)));
+            rows.push((Ic::Sort, "Nach Name sortieren".into(), Some(Act::SortKey(SortBy::Name))));
+            rows.push((Ic::Clock, "Nach Datum sortieren".into(), Some(Act::SortKey(SortBy::Date))));
+            rows.push((Ic::Chart, "Nach Größe sortieren".into(), Some(Act::SortKey(SortBy::Size))));
+            rows.push((Ic::List, "Ansicht: Liste".into(), Some(Act::SetView(ViewMode::Details))));
+            rows.push((Ic::Grid, "Ansicht: Kacheln".into(), Some(Act::SetView(ViewMode::Large))));
+            rows.push((Ic::Refresh, "Aktualisieren".into(), Some(Act::Refresh)));
+            rows.push((Ic::Info, "Eigenschaften".into(), Some(Act::Props(cwd.clone()))));
+        } else {
+            let first = paths[0].clone();
+            tiles.push((Ic::Open, "Öffnen", single.then(|| if dir { Act::Go(first.clone()) } else { Act::OpenFile(first.clone()) })));
+            tiles.push((Ic::Share, "Teilen", paths.iter().any(|p| fsx::is_file(p)).then(|| Act::Share(paths.clone()))));
+            tiles.push((Ic::Copy, "Kopieren", Some(Act::SetClip(paths.clone(), false))));
+            tiles.push((Ic::Cut, "Verschieben", Some(Act::SetClip(paths.clone(), true))));
+            tiles.push((Ic::Rename, "Umbenennen", single.then_some(Act::Rename)));
+            tiles.push((Ic::Trash, "Löschen", Some(Act::DeletePerm(paths.clone()))));
+            tiles.push((Ic::Info, "Eigenschaften", single.then(|| Act::Props(first.clone()))));
+            tiles.push((Ic::Download, "Als ZIP", Some(Act::Compress(paths.clone(), Format::Zip))));
+            if dir && can_paste {
+                rows.push((Ic::Paste, "Hier einfügen".into(), Some(Act::PasteInto(first.clone()))));
+            }
+            if dir {
+                rows.push((Ic::Pin, "An Schnellzugriff anheften".into(), Some(Act::Pin(first.clone()))));
+                rows.push((Ic::Star, "Ordner-Icon ändern".into(), Some(Act::FolderIcon(first.clone()))));
+            }
+            let archives: Vec<PathBuf> = paths.iter().filter(|p| p.file_name().is_some_and(|n| extract::is_archive(&n.to_string_lossy()))).cloned().collect();
+            if !archives.is_empty() {
+                rows.push((Ic::Download, "Hier entpacken".into(), Some(Act::Extract(archives, false))));
+            }
+            if paths.iter().all(|p| fsx::is_file(p)) {
+                let mut targets = convert::targets(&paths[0]);
+                for p in &paths[1..] {
+                    let t2 = convert::targets(p);
+                    targets.retain(|t| t2.contains(t));
+                }
+                for t in targets.into_iter().take(6) {
+                    let a = if single { Act::Convert(first.clone(), t.to_string()) } else { Act::ConvertMany(paths.clone(), t.to_string()) };
+                    rows.push((Ic::Refresh, format!("Umwandeln in .{t}"), Some(a)));
+                }
+            }
+            rows.push((Ic::Copy, "Pfad kopieren".into(), Some(Act::CopyText(paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join("\n")))));
+        }
+        // Plugin-Befehle
+        for (key, title, _, ic) in self.plugin_matches(&paths) {
+            rows.push((ic, title, Some(Act::Plugin(key, paths.clone()))));
+        }
+        let w = screen.width();
+        let max_h = screen.height() * 0.78;
+        let mut chosen: Option<(bool, &str)> = None;
+        let mut chosen_row: Option<usize> = None;
+        egui::Area::new(Id::new("sheet"))
+            .order(egui::Order::Foreground)
+            .anchor(Align2::CENTER_BOTTOM, [0.0, 0.0])
+            .show(ctx, |ui| {
+                egui::Frame::none()
+                    .fill(th.panel)
+                    .rounding(Rounding { nw: 22.0, ne: 22.0, sw: 0.0, se: 0.0 })
+                    .inner_margin(Margin { left: 14.0, right: 14.0, top: 10.0, bottom: 14.0 })
+                    .show(ui, |ui| {
+                        ui.set_width(w - 28.0);
+                        // Griff
+                        let (g, _) = ui.allocate_exact_size(vec2(ui.available_width(), 10.0), Sense::hover());
+                        ui.painter().rect_filled(Rect::from_center_size(g.center(), vec2(36.0, 4.0)), 2.0, th.line);
+                        ui.add_space(4.0);
+                        ui.add(egui::Label::new(egui::RichText::new(&name).size(17.0).strong()).truncate());
+                        ui.add_space(10.0);
+                        egui::ScrollArea::vertical().max_height(max_h - 60.0).show(ui, |ui| {
+                            // Kacheln, 4 je Zeile
+                            let cols = 4usize;
+                            let tw = (ui.available_width() - 6.0 * (cols as f32 - 1.0)) / cols as f32;
+                            for chunk in tiles.chunks(cols) {
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 6.0;
+                                    for (ic, label, act) in chunk {
+                                        let enabled = act.is_some();
+                                        let (r, resp) = ui.allocate_exact_size(vec2(tw, 74.0), if enabled { Sense::click() } else { Sense::hover() });
+                                        let down = resp.is_pointer_button_down_on();
+                                        ui.painter().rect_filled(r, 16.0, if down { th.press } else { th.field });
+                                        let col = if enabled { th.text } else { th.sub.gamma_multiply(0.5) };
+                                        ui::draw(ui.painter(), Rect::from_center_size(pos2(r.center().x, r.top() + 27.0), vec2(22.0, 22.0)), *ic, if enabled { th.accent } else { col });
+                                        ui.painter().text(pos2(r.center().x, r.bottom() - 15.0), Align2::CENTER_CENTER, *label, FontId::proportional(12.5), col);
+                                        if resp.clicked() && enabled {
+                                            chosen = Some((true, *label));
+                                        }
+                                    }
+                                });
+                                ui.add_space(6.0);
+                            }
+                            if !rows.is_empty() {
+                                ui.add_space(4.0);
+                            }
+                            for (k, (ic, label, act)) in rows.iter().enumerate() {
+                                let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 50.0), Sense::click());
+                                if resp.is_pointer_button_down_on() {
+                                    ui.painter().rect_filled(r, 12.0, th.hover);
+                                }
+                                ui::draw(ui.painter(), Rect::from_center_size(pos2(r.left() + 22.0, r.center().y), vec2(20.0, 20.0)), *ic, th.sub);
+                                ui::paint_text(ui, r.left() + 50.0, r.center().y, label, 15.0, th.text, r.width() - 60.0, false);
+                                if resp.clicked() && act.is_some() {
+                                    chosen_row = Some(k);
+                                }
+                            }
+                        });
+                    });
+            });
+        if let Some((_, label)) = chosen {
+            if let Some(a) = tiles.into_iter().find(|t| t.1 == label).and_then(|t| t.2) {
+                acts.push(a);
+            }
+            close = true;
+        } else if let Some(k) = chosen_row {
+            if let Some(a) = rows.into_iter().nth(k).and_then(|t| t.2) {
+                acts.push(a);
+            }
+            close = true;
+        }
+        if close {
+            self.sheet = None;
+        }
+    }
+
     /// Kontextmenü ist offen (für die Zurück-Taste); `true` = soll geschlossen werden
     fn menu_mark(&mut self, ui: &mut egui::Ui) -> bool {
         self.menu_seen = ui.ctx().cumulative_pass_nr();
@@ -8854,6 +9077,9 @@ impl App {
     /// Zurück-Taste (Android): oberstes Menü/Fenster schließen, sonst zurück bzw. eine Ebene nach oben;
     /// ganz oben (interner Speicher) geht die App wie andere Apps in den Hintergrund
     fn back_key(&mut self, ctx: &egui::Context) {
+        if self.sheet.take().is_some() {
+            return;
+        }
         if self.menu_seen + 1 >= ctx.cumulative_pass_nr() {
             self.close_menu_req = true;
             ctx.request_repaint();
@@ -10138,7 +10364,13 @@ impl App {
                 acts.push(Act::CommitRename);
             }
         }
-        bg.context_menu(|ui| self.bg_menu(ui, pn, acts));
+        if cfg!(target_os = "android") {
+            if bg.secondary_clicked() {
+                self.sheet = Some(Vec::new());
+            }
+        } else {
+            bg.context_menu(|ui| self.bg_menu(ui, pn, acts));
+        }
         self.zones.push((area, Dest::Dir(pn.cwd.clone())));
         // Statusmeldungen im leeren Bereich
         let msg = if let Some(e) = &pn.err {
@@ -10292,12 +10524,12 @@ impl App {
         if idx >= pn.items.len() {
             return;
         }
-        let resp = ui.interact(rect, ui.id().with(("item", pos)), item_sense());
         let (name, dir, size, flags) = {
             let it = &pn.items[idx];
             (it.name.to_string(), it.dir, it.size, it.flags)
         };
         let selected = pn.sel.contains(name.as_str());
+        let resp = ui.interact(rect, ui.id().with(("item", pos)), item_sense(selected));
         let is_target = self.drag.is_some()
             && dir
             && !selected
@@ -10463,8 +10695,9 @@ impl App {
                 acts.push(Act::CommitRename);
             }
         }
-        // Handy: einmal Tippen öffnet (Markieren über langes Drücken / Kontextmenü)
-        if resp.double_clicked() || (cfg!(target_os = "android") && resp.clicked() && pn.rename.is_none()) {
+        // Handy: Ordner öffnen mit einmal Tippen; Dateien markiert einmal Tippen (dann ziehen zum Verschieben),
+        // Doppeltippen öffnet die Vorschau, langes Drücken das Aktionsfeld
+        if resp.double_clicked() || (cfg!(target_os = "android") && dir && resp.clicked() && pn.rename.is_none()) {
             let p = pn.cwd.join(&name);
             acts.push(if dir { Act::Go(p) } else { Act::OpenFile(p) });
         }
@@ -10474,7 +10707,13 @@ impl App {
         if resp.secondary_clicked() && !selected {
             pn.select_pos(pos, false, false);
         }
-        resp.context_menu(|ui| self.item_menu(ui, pn, acts));
+        if cfg!(target_os = "android") {
+            if resp.secondary_clicked() {
+                self.sheet = Some(pn.sel_paths());
+            }
+        } else {
+            resp.context_menu(|ui| self.item_menu(ui, pn, acts));
+        }
     }
 
     // ── Suchergebnisse (Ordnersuche und PC-Suche) ──
@@ -10583,7 +10822,7 @@ impl App {
                         ),
                     };
                     let (rect, resp) =
-                        ui.allocate_exact_size(vec2(ui.available_width(), row_h()), item_sense());
+                        ui.allocate_exact_size(vec2(ui.available_width(), row_h()), item_sense(sv.sel.contains(&path)));
                     let inner = rect.shrink2(vec2(4.0, 1.0));
                     let selected = sv.sel.contains(&path);
                     if selected {
@@ -11506,8 +11745,8 @@ impl App {
             });
         // Größe an kleine Fenster / hohe Windows-Skalierung anpassen
         let phone = narrow(ctx);
-        let max_h = if phone { ctx.screen_rect().height() } else { (ctx.screen_rect().height() - 60.0).clamp(300.0, 720.0) };
-        let win_w = if phone { ctx.screen_rect().width() } else { (ctx.screen_rect().width() - 40.0).clamp(560.0, 900.0) };
+        let max_h = if phone { ctx.screen_rect().height() - 20.0 } else { (ctx.screen_rect().height() - 60.0).clamp(300.0, 720.0) };
+        let win_w = if phone { ctx.screen_rect().width() - 24.0 } else { (ctx.screen_rect().width() - 40.0).clamp(560.0, 900.0) };
         let frame = if phone { frame.rounding(Rounding::ZERO).inner_margin(Margin::symmetric(12.0, 10.0)).stroke(Stroke::NONE) } else { frame };
         let pages = settings_pages();
         if !pages.iter().any(|p| p.0 == self.settings_page) {
@@ -12410,7 +12649,7 @@ impl App {
                     });
                     settings_card(ui, th, "Plugins", |ui| {
                         ui.horizontal_wrapped(|ui| {
-                            if ui.button("Plugin-Ordner öffnen").clicked() {
+                            if !cfg!(target_os = "android") && ui.button("Plugin-Ordner öffnen").clicked() {
                                 let d = plugins::dir();
                                 let _ = fs::create_dir_all(&d);
                                 let _ = open::that_detached(&d);
@@ -12418,7 +12657,7 @@ impl App {
                             if ui.button("Neu laden").clicked() {
                                 plugin_act = Some(Act::PluginsReload);
                             }
-                            if ui.button("Beispiel-Plugin anlegen").on_hover_text("Legt „beispiel“ im Plugin-Ordner an – zum Ausprobieren und Abschauen").clicked() {
+                            if !cfg!(target_os = "android") && ui.button("Beispiel-Plugin anlegen").on_hover_text("Legt „beispiel“ im Plugin-Ordner an – zum Ausprobieren und Abschauen").clicked() {
                                 match plugins::create_example() {
                                     Ok(d) => {
                                         let _ = open::that_detached(&d);
@@ -12434,8 +12673,9 @@ impl App {
                             ui.label(egui::RichText::new(e).color(th.danger));
                         }
                         if self.plugins.is_empty() {
-                            ui.label(egui::RichText::new("Noch keine Plugins installiert. Ein Plugin ist ein Ordner mit einer plugin.json im Plugin-Ordner.").color(th.sub));
+                            ui.label(egui::RichText::new("Noch keine Plugins installiert – unten im Katalog mit einem Klick hinzufügen, oder einen Ordner mit einer plugin.json in den Plugin-Ordner legen.").color(th.sub));
                         }
+                        let mut remove: Option<String> = None;
                         for pl in &self.plugins {
                             let on = !st.plugins_off.contains(&pl.id);
                             let mut sub = if pl.version.is_empty() { String::new() } else { format!("Version {} · ", pl.version) };
@@ -12449,7 +12689,11 @@ impl App {
                             if !pl.description.is_empty() {
                                 sub = format!("{} – {sub}", pl.description);
                             }
-                            setting_row(ui, th, &pl.name, &sub, |ui| {
+                            let tex = pl.icon().and_then(|icon| plugin_texture(ui.ctx(), &icon.display().to_string(), || image::open(&icon).ok().map(|i| {
+                                let i = i.resize(64, 64, image::imageops::FilterType::Lanczos3).to_rgba8();
+                                (i.width() as usize, i.into_raw())
+                            })));
+                            catalog_row(ui, th, tex.as_ref(), &pl.name, &sub, if cfg!(target_os = "android") { 170.0 } else { 240.0 }, |ui| {
                                 let mut v = on;
                                 toggle_switch(ui, th, at, &mut v);
                                 if v != on {
@@ -12459,10 +12703,77 @@ impl App {
                                         st.plugins_off.insert(pl.id.clone());
                                     }
                                 }
-                                if ui.small_button("Ordner").clicked() {
+                                if !cfg!(target_os = "android") && ui.small_button("Ordner").clicked() {
                                     let _ = open::that_detached(&pl.dir);
                                 }
+                                if ui.small_button("Entfernen").clicked() {
+                                    remove = Some(pl.id.clone());
+                                }
                             });
+                        }
+                        if let Some(id) = remove {
+                            match plugins::uninstall(&id) {
+                                Ok(()) => plugin_act = Some(Act::PluginsReload),
+                                Err(e) => plugin_err = Some(e),
+                            }
+                        }
+                        // ── Katalog: Plugins aus dem Foldex-Repository ──
+                        ui.add_space(14.0);
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new("Katalog").size(15.0).strong());
+                            if ui.small_button("Aktualisieren").clicked() {
+                                let c = ui.ctx().clone();
+                                plugins::load_catalog(move || c.request_repaint());
+                            }
+                        });
+                        ui.label(egui::RichText::new("Plugins aus dem Foldex-Repository auf GitHub – mit einem Klick installieren und wieder entfernen.").size(12.0).color(th.sub));
+                        ui.add_space(6.0);
+                        if let Some((ok, m)) = plugins::message() {
+                            ui.label(egui::RichText::new(m).size(12.0).color(if ok { th.accent } else { th.danger }));
+                        }
+                        match plugins::catalog() {
+                            plugins::Catalog::Idle => {
+                                let c = ui.ctx().clone();
+                                plugins::load_catalog(move || c.request_repaint());
+                            }
+                            plugins::Catalog::Loading => {
+                                ui.horizontal(|ui| {
+                                    ui.spinner();
+                                    ui.label(egui::RichText::new("Katalog wird geladen …").color(th.sub));
+                                });
+                            }
+                            plugins::Catalog::Failed(e) => {
+                                ui.label(egui::RichText::new(format!("Katalog nicht erreichbar: {e}")).color(th.danger));
+                            }
+                            plugins::Catalog::Ready(list) => {
+                                for (e, icon) in list {
+                                    let installed = self.plugins.iter().any(|p| p.id == e.id);
+                                    let busy = plugins::busy(&e.id);
+                                    let tex = icon.and_then(|(px, rgba)| plugin_texture(ui.ctx(), &format!("catalog:{}:{}", e.id, e.version), || Some((px, rgba))));
+                                    let mut sub = e.description.clone();
+                                    if !e.version.is_empty() {
+                                        sub.push_str(&format!(" · Version {}", e.version));
+                                    }
+                                    if !e.supported() {
+                                        sub.push_str(" · nicht für dieses System");
+                                    }
+                                    catalog_row(ui, th, tex.as_ref(), &e.name, &sub, 130.0, |ui| {
+                                        if busy {
+                                            ui.spinner();
+                                        } else if installed {
+                                            if ui.add(egui::Button::new("Entfernen").min_size(vec2(96.0, 30.0))).clicked() {
+                                                match plugins::uninstall(&e.id) {
+                                                    Ok(()) => plugin_act = Some(Act::PluginsReload),
+                                                    Err(x) => plugin_err = Some(x),
+                                                }
+                                            }
+                                        } else if ui.add_enabled(e.supported(), egui::Button::new(egui::RichText::new("Installieren").color(Color32::WHITE)).fill(th.accent).min_size(vec2(96.0, 30.0))).clicked() {
+                                            let c = ui.ctx().clone();
+                                            plugins::install(e.clone(), move || c.request_repaint());
+                                        }
+                                    });
+                                }
+                            }
                         }
                     });
                     settings_card(ui, th, "Updates", |ui| {
@@ -13663,6 +13974,20 @@ impl eframe::App for App {
 
     /// Eingaben der Explorer-KI einspeisen (ein Paket je Bild, damit Klicks als Drücken + Loslassen ankommen).
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        // Android: Statusleiste oben, Gestenleiste unten und die abgerundeten Bildschirmecken freilassen
+        #[cfg(target_os = "android")]
+        if let Some(r) = raw.screen_rect.as_mut() {
+            self.full_rect = Some(*r);
+            let ppp = raw.viewports.get(&raw.viewport_id).and_then(|v| v.native_pixels_per_point).unwrap_or(1.0) * ctx.zoom_factor();
+            let (top, bottom) = android::bar_insets();
+            let portrait = r.height() > r.width();
+            r.min.y += top / ppp;
+            r.max.y -= bottom / ppp;
+            // Ecken: im Hochformat etwas Rand links/rechts, im Querformat mehr (Kamera-Ausschnitt, Rundung)
+            let side = if portrait { 6.0 } else { (top / ppp).max(12.0) };
+            r.min.x += side;
+            r.max.x -= side;
+        }
         if let Some(batch) = self.inject.pop_front() {
             raw.events.extend(batch);
             ctx.request_repaint();
@@ -13672,6 +13997,10 @@ impl eframe::App for App {
     /// Transparent: das kleine Vorschau-Fenster beim Herausziehen eines Tabs hat abgerundete Ecken.
     /// (Das Hauptfenster füllt alles selbst aus.)
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        // Android: hinter Statusleiste und Rändern die Hintergrundfarbe der App (kein schwarzer Balken)
+        if cfg!(target_os = "android") {
+            return egui::Rgba::from(self.th.bg).to_array();
+        }
         [0.0, 0.0, 0.0, 0.0]
     }
 
@@ -13681,6 +14010,10 @@ impl eframe::App for App {
         // (im Android-Build kommt die Zurück-Taste als F35 an, siehe android/patches/egui-winit)
         if cfg!(target_os = "android") && ctx.input(|i| i.key_pressed(Key::F35)) {
             self.back_key(ctx);
+        }
+        // Android: hinter Statusleiste, Gestenleiste und Rändern die App-Farbe (kein schwarzer Balken)
+        if let Some(full) = self.full_rect.filter(|_| cfg!(target_os = "android")) {
+            ctx.layer_painter(egui::LayerId::background()).with_clip_rect(full).rect_filled(full, 0.0, self.th.bg);
         }
         #[cfg(target_os = "android")]
         if android::frame(ctx) {
@@ -13777,6 +14110,10 @@ impl eframe::App for App {
         }
         self.ui_rules(ctx);
         self.ui_plugins(ctx);
+        self.ui_sheet(ctx, &mut acts);
+        if plugins::take_reload() {
+            acts.push(Act::PluginsReload);
+        }
         self.pip_ui(ctx);
         prof::mark("windows");
         if let Some(w) = &mut self.share {

@@ -1,0 +1,53 @@
+{
+  "name": "Zeilen zählen",
+  "id": "zeilen-zaehlen",
+  "version": "1.0",
+  "author": "Foldex",
+  "description": "Zählt die Zeilen in Text- und Code-Dateien – einzeln und zusammen.",
+  "api": 1,
+  "commands": [
+    {
+      "id": "zeilen",
+      "title": "Zeilen zählen",
+      "description": "Zeilen je Datei und gesamt",
+      "when": [
+        "file"
+      ],
+      "extensions": [
+        "txt",
+        "md",
+        "csv",
+        "log",
+        "json",
+        "xml",
+        "html",
+        "css",
+        "js",
+        "ts",
+        "py",
+        "rs",
+        "c",
+        "h",
+        "cpp",
+        "java",
+        "kt",
+        "go",
+        "sh",
+        "ps1",
+        "toml",
+        "yaml",
+        "yml",
+        "ini"
+      ],
+      "run": "zeilen.ps1",
+      "args": [
+        "{files}"
+      ],
+      "unix": {
+        "run": "zeilen.sh"
+      },
+      "output": "window",
+      "icon": "code"
+    }
+  ]
+}

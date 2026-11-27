@@ -1,0 +1,30 @@
+{
+  "name": "Ordner-Statistik",
+  "id": "ordner-statistik",
+  "version": "1.0",
+  "author": "Foldex",
+  "description": "Welche Dateiarten im aktuellen Ordner (mit Unterordnern) wie oft vorkommen und wie groß alles zusammen ist.",
+  "api": 1,
+  "commands": [
+    {
+      "id": "statistik",
+      "title": "Ordner-Statistik",
+      "description": "Dateiarten und Gesamtgröße",
+      "when": [
+        "background",
+        "folder"
+      ],
+      "multiple": false,
+      "run": "statistik.ps1",
+      "args": [
+        "{dir}",
+        "{file}"
+      ],
+      "unix": {
+        "run": "statistik.sh"
+      },
+      "output": "window",
+      "icon": "tools"
+    }
+  ]
+}

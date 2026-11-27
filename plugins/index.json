@@ -1,0 +1,58 @@
+[
+  {
+    "id": "pruefsumme",
+    "name": "Prüfsumme (SHA-256)",
+    "description": "Zeigt die SHA-256-Prüfsumme der markierten Dateien – zum Vergleichen mit Download-Seiten.",
+    "version": "1.0",
+    "author": "Foldex",
+    "files": [
+      "plugin.json",
+      "hash.ps1",
+      "hash.sh",
+      "icon.png"
+    ],
+    "platforms": []
+  },
+  {
+    "id": "kopie-mit-datum",
+    "name": "Kopie mit Datum",
+    "description": "Legt neben jeder markierten Datei eine Kopie mit dem heutigen Datum im Namen an (bericht_2026-11-27.pdf).",
+    "version": "1.0",
+    "author": "Foldex",
+    "files": [
+      "plugin.json",
+      "kopie.ps1",
+      "kopie.sh",
+      "icon.png"
+    ],
+    "platforms": []
+  },
+  {
+    "id": "ordner-statistik",
+    "name": "Ordner-Statistik",
+    "description": "Welche Dateiarten im aktuellen Ordner (mit Unterordnern) wie oft vorkommen und wie groß alles zusammen ist.",
+    "version": "1.0",
+    "author": "Foldex",
+    "files": [
+      "plugin.json",
+      "statistik.ps1",
+      "statistik.sh",
+      "icon.png"
+    ],
+    "platforms": []
+  },
+  {
+    "id": "zeilen-zaehlen",
+    "name": "Zeilen zählen",
+    "description": "Zählt die Zeilen in Text- und Code-Dateien – einzeln und zusammen.",
+    "version": "1.0",
+    "author": "Foldex",
+    "files": [
+      "plugin.json",
+      "zeilen.ps1",
+      "zeilen.sh",
+      "icon.png"
+    ],
+    "platforms": []
+  }
+]

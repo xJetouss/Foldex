@@ -104,6 +104,33 @@ Endet `run` auf `.ps1`, `.bat`/`.cmd`, `.py`, `.js` oder `.sh`, startet Foldex d
 Befehle mit `output: status` oder `window` laufen ohne Konsolenfenster im Hintergrund; nach 10 Minuten
 bricht Foldex sie ab. Ein Exit-Code ungleich 0 gilt als Fehler und zeigt die Ausgabe im Fenster.
 
+### Je System ein eigenes Programm (Windows, Linux, Android)
+
+Ein Befehl kann für jedes System ein eigenes `run`/`args` haben. Foldex nimmt unter Windows `windows`, unter
+Linux `linux` (sonst `unix`) und auf Android `android` (sonst `unix`); fehlt beides, gilt das allgemeine
+`run`/`args`. Hat ein Befehl für das laufende System kein Programm, wird er dort ausgeblendet.
+
+```json
+{ "id": "sha256", "title": "Prüfsumme (SHA-256)", "when": ["file"],
+  "run": "hash.ps1", "args": ["{files}"],
+  "unix": { "run": "hash.sh" },
+  "output": "window" }
+```
+
+Auf Android laufen `.sh`-Skripte mit der System-Shell (`/system/bin/sh`, Toybox: `find`, `sed`, `sort`,
+`sha256sum`, `du`, `wc` …).
+
+### Logo
+
+Ein `icon.png` (quadratisch, z. B. 128 × 128) im Plugin-Ordner erscheint in den Einstellungen links neben dem Plugin.
+
+## Katalog
+
+Unter **Einstellungen → Plugins → Katalog** listet Foldex die Plugins aus dem Ordner
+[`plugins/`](https://github.com/xJetouss/Foldex/tree/main/plugins) des Foldex-Repositorys – mit Logo,
+„Installieren“ und „Entfernen“. `plugins/index.json` nennt je Plugin `id`, `name`, `description`, `version`,
+`author`, die Dateien (`files`) und optional die Systeme (`platforms`: `windows`, `linux`, `android`).
+
 ## Beispiele
 
 **Pfade kopieren** (`kopieren.ps1` liegt im Plugin-Ordner):

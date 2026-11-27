@@ -6,6 +6,7 @@
 <title>Foldex Plugin API</title>
 <meta name="description" content="Write Foldex plugins: add your own commands to the right-click menu and command palette with a small plugin.json.">
 <link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <script>
   try {
     if (localStorage.getItem('foldex-lang') === 'de') document.documentElement.lang = 'de';
@@ -111,6 +112,8 @@ footer { border-top: 1px solid var(--line); padding: 28px 0 44px; color: var(--d
       <a href="#commands"><span lang="en">Commands</span><span lang="de">Befehle</span></a>
       <a href="#placeholders"><span lang="en">Placeholders</span><span lang="de">Platzhalter</span></a>
       <a href="#scripts"><span lang="en">Scripts</span><span lang="de">Skripte</span></a>
+      <a href="#platforms"><span lang="en">Windows · Linux · Android</span><span lang="de">Windows · Linux · Android</span></a>
+      <a href="#catalog"><span lang="en">Catalog</span><span lang="de">Katalog</span></a>
       <a href="#examples"><span lang="en">Examples</span><span lang="de">Beispiele</span></a>
       <a href="#security"><span lang="en">Security</span><span lang="de">Sicherheit</span></a>
     </nav>
@@ -219,6 +222,20 @@ footer { border-top: 1px solid var(--line); padding: 28px 0 44px; color: var(--d
     <p lang="de">Endet <code>run</code> auf <code>.ps1</code>, <code>.bat</code>/<code>.cmd</code>, <code>.py</code>, <code>.js</code> oder <code>.sh</code>, startet Foldex den passenden Interpreter (<code>powershell -File</code>, <code>cmd /C</code>, <code>python</code>, <code>node</code>, <code>bash</code>). Die Pfade kommen als Argumente an – <code>$args</code> in PowerShell, <code>sys.argv[1:]</code> in Python.</p>
     <p lang="en">Commands with <code>status</code> or <code>window</code> output run in the background without a console window and are stopped after 10 minutes. A non-zero exit code counts as an error and opens the output window.</p>
     <p lang="de">Befehle mit Ausgabe <code>status</code> oder <code>window</code> laufen ohne Konsolenfenster im Hintergrund und werden nach 10 Minuten beendet. Ein Exit-Code ungleich 0 gilt als Fehler und öffnet das Ausgabefenster.</p>
+
+    <h2 id="platforms"><span lang="en">Windows, Linux and Android</span><span lang="de">Windows, Linux und Android</span></h2>
+    <p lang="en">A command can have its own <code>run</code>/<code>args</code> per system: <code>windows</code>, <code>linux</code>, <code>android</code> or <code>unix</code> (Linux and Android). Commands without a program for the running system are hidden there. On Android, <code>.sh</code> scripts run with the system shell (Toybox: <code>find</code>, <code>sed</code>, <code>sort</code>, <code>sha256sum</code>, <code>du</code>, <code>wc</code> …).</p>
+    <p lang="de">Ein Befehl kann je System ein eigenes <code>run</code>/<code>args</code> haben: <code>windows</code>, <code>linux</code>, <code>android</code> oder <code>unix</code> (Linux und Android). Befehle ohne Programm für das laufende System werden dort ausgeblendet. Auf Android laufen <code>.sh</code>-Skripte mit der System-Shell (Toybox: <code>find</code>, <code>sed</code>, <code>sort</code>, <code>sha256sum</code>, <code>du</code>, <code>wc</code> …).</p>
+<pre><code>{ <span class="k">"id"</span>: <span class="s">"sha256"</span>, <span class="k">"title"</span>: <span class="s">"SHA-256"</span>, <span class="k">"when"</span>: [<span class="s">"file"</span>],
+  <span class="k">"run"</span>: <span class="s">"hash.ps1"</span>, <span class="k">"args"</span>: [<span class="s">"{files}"</span>],
+  <span class="k">"unix"</span>: { <span class="k">"run"</span>: <span class="s">"hash.sh"</span> },
+  <span class="k">"output"</span>: <span class="s">"window"</span> }</code></pre>
+    <p lang="en">An <code>icon.png</code> (square, e.g. 128 × 128) in the plugin folder is shown next to the plugin in the settings.</p>
+    <p lang="de">Ein <code>icon.png</code> (quadratisch, z. B. 128 × 128) im Plugin-Ordner erscheint in den Einstellungen neben dem Plugin.</p>
+
+    <h2 id="catalog"><span lang="en">Catalog</span><span lang="de">Katalog</span></h2>
+    <p lang="en">Settings → Plugins → <b>Catalog</b> lists the plugins from the <a href="https://github.com/xJetouss/Foldex/tree/main/plugins"><code>plugins/</code></a> folder of the Foldex repository – with logo, one-click <b>Install</b> and <b>Remove</b>, in the desktop app and on Android. <code>plugins/index.json</code> names each plugin's <code>id</code>, <code>name</code>, <code>description</code>, <code>version</code>, <code>author</code>, its <code>files</code> and optionally <code>platforms</code>.</p>
+    <p lang="de">Einstellungen → Plugins → <b>Katalog</b> zeigt die Plugins aus dem Ordner <a href="https://github.com/xJetouss/Foldex/tree/main/plugins"><code>plugins/</code></a> des Foldex-Repositorys – mit Logo, <b>Installieren</b> und <b>Entfernen</b> per Klick, in der Desktop-App und auf Android. <code>plugins/index.json</code> nennt je Plugin <code>id</code>, <code>name</code>, <code>description</code>, <code>version</code>, <code>author</code>, die Dateien (<code>files</code>) und optional <code>platforms</code>.</p>
 
     <h2 id="examples"><span lang="en">Examples</span><span lang="de">Beispiele</span></h2>
     <h3 lang="en">Copy paths as a list</h3><h3 lang="de">Pfade als Liste kopieren</h3>
