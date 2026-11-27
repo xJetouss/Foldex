@@ -9,6 +9,8 @@ use std::time::Duration;
 const VERSION_URL: &str = "https://raw.githubusercontent.com/xJetouss/Foldex/main/Cargo.toml";
 pub const INSTALLER_URL: &str = "https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe";
 pub const PAGE_URL: &str = "https://github.com/xJetouss/Foldex";
+/// Android: neueste APK (aus dem GitHub-Release) – Android installiert sie nach dem Download selbst
+pub const APK_URL: &str = "https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Android.apk";
 
 /// laufende Version
 pub fn current() -> &'static str {
@@ -89,6 +91,20 @@ impl Updater {
 
     /// Installer laden und still ausführen; danach muss Foldex sich beenden (Rückgabe Ok)
     pub fn install(&self, ctx: &eframe::egui::Context, done: impl FnOnce(Result<(), String>) + Send + 'static) {
+        // Android: die neue APK im Browser laden – Android fragt dann, ob die App aktualisiert werden soll
+        #[cfg(target_os = "android")]
+        {
+            let _ = (ctx, done);
+            if let Err(e) = crate::android::open_url(APK_URL) {
+                *self.state.lock().unwrap() = State::Failed(format!("Download lässt sich nicht öffnen: {e}"));
+            }
+        }
+        #[cfg(not(target_os = "android"))]
+        self.install_desktop(ctx, done);
+    }
+
+    #[cfg(not(target_os = "android"))]
+    fn install_desktop(&self, ctx: &eframe::egui::Context, done: impl FnOnce(Result<(), String>) + Send + 'static) {
         *self.state.lock().unwrap() = State::Downloading;
         let (st, got, total, ctx) = (self.state.clone(), self.got.clone(), self.total.clone(), ctx.clone());
         std::thread::spawn(move || {

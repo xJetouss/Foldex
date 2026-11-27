@@ -763,6 +763,10 @@ impl Pane {
         if self.start {
             return if self.start_settings { "Startseite anpassen".into() } else { "Start".into() };
         }
+        // Android: „/storage/emulated/0“ ist der interne Speicher
+        if cfg!(target_os = "android") && (self.cwd == std::path::Path::new("/storage/emulated/0") || self.cwd == std::path::Path::new("/sdcard")) {
+            return "Interner Speicher".into();
+        }
         self.cwd
             .file_name()
             .map(|s| s.to_string_lossy().into_owned())

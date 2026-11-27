@@ -2,7 +2,7 @@
 # Bauen:  cd android && cargo apk build --release      (siehe tools/build-android.bat)
 [package]
 name = "foldex-android"
-version = "0.9.6"
+version = "0.9.7"
 edition = "2021"
 build = "../build.rs"
 publish = false
@@ -94,6 +94,9 @@ ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "
 
 
 winit = { version = "0.30", default-features = false, features = ["android-native-activity", "rwh_06"] }
+# Android-Anbindung (Tastatur, Links, Dateizugriff) über JNI
+jni = "0.21"
+ndk-context = "0.1"
 
 [build-dependencies]
 # rendert assets/app.svg zum EXE-Icon (Windows)
@@ -102,6 +105,7 @@ embed-resource = "3"
 
 [package.metadata.android]
 package = "dev.tssnt.foldex"
+resources = "res"
 apk_name = "Foldex"
 build_targets = ["aarch64-linux-android", "x86_64-linux-android"]
 
@@ -111,6 +115,7 @@ target_sdk_version = 34
 
 [package.metadata.android.application]
 label = "Foldex"
+icon = "@mipmap/ic_launcher"
 theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
 
 [package.metadata.android.application.activity]
@@ -130,4 +135,11 @@ name = "android.permission.MANAGE_EXTERNAL_STORAGE"
 [[package.metadata.android.uses_permission]]
 name = "android.permission.INTERNET"
 
+[[package.metadata.android.uses_permission]]
+name = "android.permission.REQUEST_INSTALL_PACKAGES"
+
 [workspace]
+
+# Zurück-Taste von Android an egui weiterreichen (siehe patches/egui-winit, eine Zeile in key_from_named_key)
+[patch.crates-io]
+egui-winit = { path = "patches/egui-winit" }

@@ -67,6 +67,8 @@ mod keymap;
 mod terminal;
 mod tools;
 mod plugins;
+#[cfg(target_os = "android")]
+mod android;
 mod ui;
 
 use eframe::egui::{
@@ -190,6 +192,25 @@ fn plugin_icon(name: &str) -> Ic {
         "copy" => Ic::Copy,
         "trash" => Ic::Trash,
         _ => Ic::Command,
+    }
+}
+
+/// Handy oder sehr schmales Fenster: Einstellungen im Vollbild, Zeilen untereinander
+fn narrow(ctx: &egui::Context) -> bool {
+    ctx.screen_rect().width() < 600.0
+}
+
+/// Breite eines Fensters, höchstens so breit wie der Bildschirm (Handy)
+fn fit_w(ctx: &egui::Context, w: f32) -> f32 {
+    w.min(ctx.screen_rect().width() - 16.0).max(200.0)
+}
+
+/// Einträge der Dateiliste: auf Android nur Tippen (langes Drücken = Kontextmenü statt Ziehen)
+fn item_sense() -> Sense {
+    if cfg!(target_os = "android") {
+        Sense::click()
+    } else {
+        Sense::click_and_drag()
     }
 }
 
@@ -1240,6 +1261,9 @@ struct App {
     plugin_jobs: Vec<mpsc::Receiver<plugins::Done>>,
     plugin_out: Option<plugins::Done>,
     plugin_ask: Option<(String, String, Vec<PathBuf>)>,
+    /// Bildnummer, in der zuletzt ein Kontextmenü (Einträge/leere Stelle) offen war; Zurück-Taste schließt es
+    menu_seen: u64,
+    close_menu_req: bool,
     /// Einstellungen: Befehl, dessen Tastenkürzel gerade aufgenommen wird; ggf. Konflikt
     key_rec: Option<&'static str>,
     key_conflict: Option<(&'static str, Shortcut, &'static str)>,
@@ -1554,6 +1578,8 @@ impl App {
             plugin_jobs: Vec::new(),
             plugin_out: None,
             plugin_ask: None,
+            menu_seen: 0,
+            close_menu_req: false,
             key_rec: None,
             key_conflict: None,
             git_st: None,
@@ -2985,7 +3011,13 @@ impl App {
     fn apply(&mut self, a: Act) {
         match a {
             Act::Go(p) => self.nav(p),
-            Act::OpenFile(p) => open_detached(p),
+            Act::OpenFile(p) => {
+                if cfg!(target_os = "android") {
+                    self.open_view(p);
+                } else {
+                    open_detached(p);
+                }
+            }
             Act::Open(p) => {
                 if fsx::is_dir(&p) {
                     self.nav(p);
@@ -3991,6 +4023,17 @@ fn settings_card(ui: &mut egui::Ui, th: Theme, title: &str, add: impl FnOnce(&mu
 /// Zeile: links Titel + Beschreibung, rechts das Bedienelement.
 fn setting_row(ui: &mut egui::Ui, th: Theme, title: &str, desc: &str, controls: impl FnOnce(&mut egui::Ui)) {
     let full = ui.available_width();
+    // Handy: Titel und Beschreibung oben, Bedienelemente darunter (sonst wird alles zusammengequetscht)
+    if full < 440.0 {
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 1.0;
+            ui.label(egui::RichText::new(title).size(14.5));
+            ui.add(egui::Label::new(egui::RichText::new(desc).size(12.0).color(th.sub)).wrap());
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(controls);
+        });
+        return;
+    }
     // Text so breit wie möglich, rechts bleibt Platz für Schalter, Auswahl oder Knöpfe
     let text_w = (full - 270.0).clamp(full * 0.45, full * 0.66);
     ui.horizontal(|ui| {
@@ -8778,6 +8821,59 @@ impl App {
     }
 
     // ── Kontextmenüs ──
+    /// Kontextmenü ist offen (für die Zurück-Taste); `true` = soll geschlossen werden
+    fn menu_mark(&mut self, ui: &mut egui::Ui) -> bool {
+        self.menu_seen = ui.ctx().cumulative_pass_nr();
+        if std::mem::take(&mut self.close_menu_req) {
+            ui.close_menu();
+            return true;
+        }
+        false
+    }
+
+    /// Zurück-Taste (Android): oberstes Menü/Fenster schließen, sonst zurück bzw. eine Ebene nach oben;
+    /// ganz oben (interner Speicher) geht die App wie andere Apps in den Hintergrund
+    fn back_key(&mut self, ctx: &egui::Context) {
+        if self.menu_seen + 1 >= ctx.cumulative_pass_nr() {
+            self.close_menu_req = true;
+            ctx.request_repaint();
+        } else if ctx.memory(|m| m.any_popup_open()) {
+            ctx.memory_mut(|m| m.close_popup());
+        } else if self.plugin_out.is_some() || self.plugin_ask.is_some() {
+            self.plugin_out = None;
+            self.plugin_ask = None;
+        } else if self.show_settings {
+            self.show_settings = false;
+        } else if self.share.is_some() {
+            self.share = None;
+        } else if self.folder_icon.is_some() {
+            self.folder_icon = None;
+        } else if self.batch.is_some() {
+            self.batch = None;
+        } else if self.rules.is_some() {
+            self.rules = None;
+        } else if self.palette.is_some() {
+            self.palette = None;
+        } else if self.tools.is_some() {
+            self.tools = None;
+        } else if self.csearch.is_some() {
+            self.csearch = None;
+        } else if matches!(self.pane().extra, Some(PaneView::View(_))) {
+            // Schnellansicht-Tab schließen (zurück zum Ordner)
+            self.apply(Act::TabClose(self.cur));
+        } else if !self.pane().back.is_empty() {
+            self.apply(Act::Back);
+        } else if cfg!(target_os = "android") && {
+            let c = &self.pane().cwd;
+            c.parent().is_none() || c == Path::new("/storage/emulated/0") || c == Path::new("/sdcard") || c.starts_with("/data")
+        } {
+            #[cfg(target_os = "android")]
+            android::to_background();
+        } else {
+            self.apply(Act::Up);
+        }
+    }
+
     /// Plugin und Befehl zu „plugin/befehl“ (nur eingeschaltete Plugins ohne Fehler)
     fn plugin_cmd(&self, key: &str) -> Option<(plugins::Plugin, plugins::Command)> {
         let (pid, cid) = key.split_once('/')?;
@@ -8911,6 +9007,9 @@ impl App {
     }
 
     fn bg_menu(&mut self, ui: &mut egui::Ui, pn: &Pane, acts: &mut Vec<Act>) {
+        if self.menu_mark(ui) {
+            return;
+        }
         let st = self.st.clone();
         ui.menu_button("Ansicht", |ui| menu_view(ui, pn, acts));
         ui.menu_button("Sortieren nach", |ui| menu_sort(ui, pn, &st, acts));
@@ -9022,6 +9121,9 @@ impl App {
     }
 
     fn item_menu(&mut self, ui: &mut egui::Ui, pn: &Pane, acts: &mut Vec<Act>) {
+        if self.menu_mark(ui) {
+            return;
+        }
         let paths = pn.sel_paths();
         if paths.is_empty() {
             return;
@@ -10164,7 +10266,7 @@ impl App {
         if idx >= pn.items.len() {
             return;
         }
-        let resp = ui.interact(rect, ui.id().with(("item", pos)), Sense::click_and_drag());
+        let resp = ui.interact(rect, ui.id().with(("item", pos)), item_sense());
         let (name, dir, size, flags) = {
             let it = &pn.items[idx];
             (it.name.to_string(), it.dir, it.size, it.flags)
@@ -10335,7 +10437,8 @@ impl App {
                 acts.push(Act::CommitRename);
             }
         }
-        if resp.double_clicked() {
+        // Handy: einmal Tippen öffnet (Markieren über langes Drücken / Kontextmenü)
+        if resp.double_clicked() || (cfg!(target_os = "android") && resp.clicked() && pn.rename.is_none()) {
             let p = pn.cwd.join(&name);
             acts.push(if dir { Act::Go(p) } else { Act::OpenFile(p) });
         }
@@ -10454,7 +10557,7 @@ impl App {
                         ),
                     };
                     let (rect, resp) =
-                        ui.allocate_exact_size(vec2(ui.available_width(), row_h()), Sense::click_and_drag());
+                        ui.allocate_exact_size(vec2(ui.available_width(), row_h()), item_sense());
                     let inner = rect.shrink2(vec2(4.0, 1.0));
                     let selected = sv.sel.contains(&path);
                     if selected {
@@ -11384,8 +11487,10 @@ impl App {
                 color: Color32::from_black_alpha(70),
             });
         // Größe an kleine Fenster / hohe Windows-Skalierung anpassen
-        let max_h = (ctx.screen_rect().height() - 60.0).clamp(300.0, 720.0);
-        let win_w = (ctx.screen_rect().width() - 40.0).clamp(560.0, 900.0);
+        let phone = narrow(ctx);
+        let max_h = if phone { ctx.screen_rect().height() } else { (ctx.screen_rect().height() - 60.0).clamp(300.0, 720.0) };
+        let win_w = if phone { ctx.screen_rect().width() } else { (ctx.screen_rect().width() - 40.0).clamp(560.0, 900.0) };
+        let frame = if phone { frame.rounding(Rounding::ZERO).inner_margin(Margin::symmetric(12.0, 10.0)).stroke(Stroke::NONE) } else { frame };
         if !SETTINGS_PAGES.iter().any(|p| p.0 == self.settings_page) {
             self.settings_page = SETTINGS_PAGES[0].0.to_string();
         }
@@ -11423,10 +11528,36 @@ impl App {
                 });
                 ui.add_space(8.0);
                 // Links die Bereiche, rechts nur der gewählte Bereich – statt einer langen Liste
-                let body_h = max_h - 60.0;
+                let mut body_h = max_h - 60.0;
                 let nav_w = if win_w < 680.0 { 150.0 } else { 186.0 };
                 let mut page = self.settings_page.clone();
+                // Handy: Bereiche als wischbare Leiste oben statt Spalte links
+                if phone {
+                    egui::ScrollArea::horizontal().id_salt("settings_nav").scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden).show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 6.0;
+                            for (name, _, _) in SETTINGS_PAGES {
+                                let on = page == *name;
+                                let b = egui::Button::new(egui::RichText::new(*name).size(13.5).color(if on { if th.dark { th.bg } else { Color32::WHITE } } else { th.text }))
+                                    .fill(if on { th.accent } else { th.field })
+                                    .stroke(Stroke::new(1.0, if on { th.accent } else { th.line }))
+                                    .rounding(Rounding::same(16.0))
+                                    .min_size(vec2(0.0, 34.0));
+                                let resp = ui.add(b);
+                                if on && self.settings_page != page {
+                                    resp.scroll_to_me(None);
+                                }
+                                if resp.clicked() {
+                                    page = name.to_string();
+                                }
+                            }
+                        });
+                    });
+                    ui.add_space(8.0);
+                    body_h -= 50.0;
+                }
                 ui.horizontal_top(|ui| {
+                    if !phone {
                     let (nav, _) = ui.allocate_exact_size(vec2(nav_w, body_h), Sense::hover());
                     ui.allocate_new_ui(egui::UiBuilder::new().max_rect(nav).layout(egui::Layout::top_down(egui::Align::Min)), |ui| {
                         ui.spacing_mut().item_spacing.y = 2.0;
@@ -11449,6 +11580,7 @@ impl App {
                     let (sep, _) = ui.allocate_exact_size(vec2(1.0, body_h), Sense::hover());
                     ui.painter().rect_filled(sep, 0.0, th.line);
                     ui.add_space(12.0);
+                    }
                     ui.vertical(|ui| {
                     ui.set_width(ui.available_width());
                     let desc = SETTINGS_PAGES.iter().find(|p| p.0 == page).map_or("", |p| p.2);
@@ -13522,6 +13654,15 @@ impl eframe::App for App {
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         let _prof = prof::Frame::start();
+        // Android-Zurück-Taste: erst offene Menüs und Fenster schließen, dann im Verlauf zurück
+        // (im Android-Build kommt die Zurück-Taste als F35 an, siehe android/patches/egui-winit)
+        if cfg!(target_os = "android") && ctx.input(|i| i.key_pressed(Key::F35)) {
+            self.back_key(ctx);
+        }
+        #[cfg(target_os = "android")]
+        if android::frame(ctx) {
+            self.refresh_all();
+        }
         if self.boot {
             boot("erstes Bild beginnt");
         }
@@ -13858,6 +13999,7 @@ fn boot(step: &str) {
 #[no_mangle]
 fn android_main(app: winit::platform::android::activity::AndroidApp) {
     use winit::platform::android::EventLoopBuilderExtAndroid;
+    android::init(app.clone());
     if let Some(p) = app.internal_data_path() {
         std::env::set_var("HOME", &p);
         std::env::set_var("XDG_CONFIG_HOME", p.join("config"));
@@ -13866,7 +14008,8 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
         std::env::set_var("TMPDIR", p.join("tmp"));
         let _ = fs::create_dir_all(p.join("tmp"));
     }
-    let start = ["/storage/emulated/0", "/sdcard"].iter().map(PathBuf::from).find(|d| fs::read_dir(d).is_ok());
+    // immer im internen Speicher starten – ohne erteilten Zugriff ist er erst leer, danach liest Foldex neu ein
+    let start = ["/storage/emulated/0", "/sdcard"].iter().map(PathBuf::from).find(|d| d.exists());
     let launch = Launch { paths: start.into_iter().collect(), ..Default::default() };
     let opts = eframe::NativeOptions {
         event_loop_builder: Some(Box::new(move |b| {
