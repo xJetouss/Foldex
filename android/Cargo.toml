@@ -2,7 +2,7 @@
 # Bauen:  cd android && cargo apk build --release      (siehe tools/build-android.bat)
 [package]
 name = "foldex-android"
-version = "0.9.10"
+version = "0.9.11"
 edition = "2021"
 build = "../build.rs"
 publish = false
@@ -134,9 +134,6 @@ name = "android.permission.MANAGE_EXTERNAL_STORAGE"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.INTERNET"
-
-[[package.metadata.android.uses_permission]]
-name = "android.permission.REQUEST_INSTALL_PACKAGES"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.VIBRATE"

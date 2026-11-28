@@ -13,6 +13,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <script>
   // gespeicherte Sprache vor dem ersten Zeichnen setzen (kein Aufblitzen)
+  document.documentElement.classList.add('js');
   try {
     if (localStorage.getItem('foldex-lang') === 'de') document.documentElement.lang = 'de';
     if (localStorage.getItem('foldex-theme') === 'light') document.documentElement.dataset.theme = 'light';
@@ -22,8 +23,10 @@
 :root {
   --bg: #000; --card: rgba(255,255,255,.035); --card-2: rgba(255,255,255,.06);
   --line: rgba(255,255,255,.09); --line-2: rgba(255,255,255,.16);
-  --text: #f7f7f7; --text-2: #d6dae2; --sub: #9aa0ab; --dim: #6b717c;
+  --text: #f7f7f7; --text-2: #d6dae2; --sub: #9aa0ab; --dim: #8b919c;
   --blue: #4f8eff; --blue-2: #7fb0ff; --blue-soft: rgba(79,142,255,.12);
+  --btn: #2563eb; --btn-hover: #1d55d4;
+  --elev: 0 0 0 1px var(--line-2), 0 28px 60px -28px rgba(0,0,0,.9);
   --input: #05070b; --header: rgba(0,0,0,.62); --menu: rgba(0,0,0,.96); --win: #0b0d12; --final: #04060a;
   --code: #dfe6f3; --hover: rgba(255,255,255,.1); --shadow: rgba(0,0,0,.6);
   --radius: 16px;
@@ -33,8 +36,10 @@
 :root[data-theme="light"] {
   --bg: #f5f7fb; --card: #ffffff; --card-2: #eef2f8;
   --line: rgba(15,23,42,.09); --line-2: rgba(15,23,42,.16);
-  --text: #0d1117; --text-2: #2b3240; --sub: #566070; --dim: #7a8392;
+  --text: #0d1117; --text-2: #2b3240; --sub: #566070; --dim: #5d6676;
   --blue: #2f74f5; --blue-2: #2563eb; --blue-soft: rgba(47,116,245,.1);
+  --btn: #2563eb; --btn-hover: #1d4ed8;
+  --elev: 0 0 0 1px var(--line-2), 0 24px 50px -26px rgba(15,23,42,.35);
   --input: #ffffff; --header: rgba(245,247,251,.78); --menu: rgba(245,247,251,.98); --win: #ffffff; --final: #eaf0fb;
   --code: #1e293b; --hover: rgba(15,23,42,.06); --shadow: rgba(15,23,42,.12);
   color-scheme: light;
@@ -43,9 +48,10 @@
 :root[lang="en"] [lang="de"], :root[lang="de"] [lang="en"] { display: none !important; }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 80px; -webkit-text-size-adjust: 100%; background: var(--bg); }
+html { scroll-behavior: smooth; scroll-padding-top: 80px; -webkit-text-size-adjust: 100%; background: var(--bg); overflow-x: clip; scrollbar-color: var(--line-2) var(--bg); }
+::selection { background: rgba(79,142,255,.35); color: var(--text); }
 body {
-  margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden;
+  margin: 0; background: var(--bg); color: var(--text); overflow-x: clip; caret-color: var(--blue);
   font: 16px/1.6 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Inter", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -62,11 +68,12 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 /* ── Knöpfe: Pillen mit Leuchten ── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; border-radius: 999px;
-  background: var(--blue); color: #fff; font-weight: 600; border: 0; cursor: pointer; white-space: nowrap; font-size: 15px;
-  box-shadow: 0 8px 20px -10px rgba(79,142,255,.75), inset 0 1px 0 rgba(255,255,255,.35);
-  transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
+  background: var(--btn); color: #fff; font-weight: 600; border: 0; cursor: pointer; white-space: nowrap; font-size: 15px;
+  box-shadow: 0 6px 16px -8px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.22);
+  transition: transform .15s cubic-bezier(.2,.8,.2,1), background-color .15s ease, box-shadow .15s ease;
 }
-.btn:hover { text-decoration: none; filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 14px 30px -12px rgba(79,142,255,.9), inset 0 1px 0 rgba(255,255,255,.35); }
+.btn:hover { text-decoration: none; background: var(--btn-hover); transform: translateY(-1px); box-shadow: 0 10px 22px -10px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.22); }
+.btn:active { transform: translateY(0); }
 .btn.ghost { background: var(--card-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
 .btn.ghost:hover { background: var(--hover); }
 .btn.small { padding: 8px 16px; font-size: 14px; }
@@ -89,9 +96,11 @@ nav.links a:hover, nav.links a.on { color: var(--text); background: var(--card-2
 :root[data-theme="light"] .theme-btn .sun { display: none; }
 :root[data-theme="light"] .theme-btn .moon { display: block; }
 .menu-btn { display: none; width: 36px; padding: 0; justify-content: center; }
+a.pill-btn { color: var(--text); }
+a.pill-btn:hover { text-decoration: none; }
 
 /* ── Hero ── */
-.hero { position: relative; isolation: isolate; padding: 88px 0 56px; }
+.hero { position: relative; isolation: isolate; padding: 88px 0 56px; overflow-x: clip; }
 .hero::before { /* Raster, das nach außen ausläuft */
   content: ""; position: absolute; inset: -64px 0 0; z-index: -2;
   background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
@@ -101,21 +110,25 @@ nav.links a:hover, nav.links a.on { color: var(--text); background: var(--card-2
 .hero::after { content: ""; position: absolute; z-index: -1; right: -10%; top: -10%; width: 70%; height: 90%; background: radial-gradient(closest-side, rgba(79,142,255,.22), transparent 70%); }
 .hero .grid2 { display: grid; grid-template-columns: 1fr 1.15fr; gap: 56px; align-items: center; }
 .badge { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--sub); background: var(--card); box-shadow: inset 0 0 0 1px var(--line); padding: 5px 14px 5px 6px; border-radius: 999px; }
-.badge b { background: var(--blue); color: #fff; font-size: 11.5px; padding: 2px 9px; border-radius: 999px; }
+.badge b { background: var(--btn); color: #fff; font-size: 11.5px; padding: 2px 9px; border-radius: 999px; }
 .hero h1 { font-size: clamp(42px, 6vw, 72px); line-height: 1.02; margin: 22px 0 18px; }
 .hero p.lead { font-size: clamp(16.5px, 1.8vw, 19px); color: var(--sub); max-width: 540px; margin: 0 0 30px; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.text-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-weight: 600; font-size: 15px; padding: 10px 4px; }
+.text-link svg.i { width: 16px; height: 16px; transition: transform .2s cubic-bezier(.2,.8,.2,1); }
+.text-link:hover { color: var(--text); text-decoration: none; }
+.text-link:hover svg.i { transform: translateX(3px); }
 .hero .sub-links { margin-top: 14px; font-size: 13.5px; color: var(--dim); }
 .hero .sub-links a { color: var(--sub); }
 
 /* Bildschirmfoto im Fensterrahmen mit Leuchten */
-.window { position: relative; border-radius: 14px; background: var(--win); box-shadow: 0 0 0 1px var(--line-2), 0 30px 80px -20px rgba(79,142,255,.35), 0 20px 60px var(--shadow); overflow: hidden; }
+.window { position: relative; border-radius: 14px; background: var(--win); box-shadow: var(--elev); overflow: hidden; }
 .window .bar { height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 12px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--dim); }
 .window .bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-2); }
 .window .bar span { margin-left: 8px; }
 figure.shot { margin: 0; cursor: zoom-in; }
 figure.shot img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; }
-.framed { border-radius: 14px; overflow: hidden; box-shadow: 0 0 0 1px var(--line-2), 0 30px 70px -30px rgba(79,142,255,.4); }
+.framed { border-radius: 14px; overflow: hidden; box-shadow: var(--elev); }
 
 /* ── Kennzahlen ── */
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
@@ -129,10 +142,9 @@ section { padding: 120px 0 0; }
 .head { text-align: center; max-width: 760px; margin: 0 auto 44px; }
 .head h2 { font-size: clamp(34px, 4.6vw, 56px); line-height: 1.04; margin: 0 0 16px; }
 .head p { color: var(--sub); font-size: 17.5px; margin: 0; }
-.kicker { display: inline-block; font-size: 12.5px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--blue); margin-bottom: 14px; }
 .card { background: var(--card); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line); padding: 22px; transition: box-shadow .2s ease, background .2s ease; }
 .card:hover { background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line-2); }
-.card h4 { margin: 0 0 6px; font-size: 16.5px; display: flex; align-items: center; gap: 12px; }
+.card h3 { margin: 0 0 6px; font-size: 16.5px; display: flex; align-items: center; gap: 12px; }
 .card p { margin: 0; color: var(--sub); font-size: 14.5px; }
 .ic { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; color: var(--blue-2); background: rgba(79,142,255,.12); box-shadow: inset 0 0 0 1px rgba(79,142,255,.25); flex: none; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
@@ -144,8 +156,8 @@ section { padding: 120px 0 0; }
 }
 
 /* ── Suche ── */
-.search-demo { background: var(--card); border-radius: 18px; box-shadow: inset 0 0 0 1px var(--line-2), 0 30px 80px -30px rgba(79,142,255,.45); padding: 18px; }
-.sbox { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; background: var(--input); box-shadow: inset 0 0 0 1px rgba(79,142,255,.45), 0 0 0 4px rgba(79,142,255,.1); font: 16px/1.2 Consolas, "Cascadia Code", ui-monospace, monospace; }
+.search-demo { background: var(--card); border-radius: 18px; box-shadow: var(--elev); padding: 18px; }
+.sbox { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; background: var(--input); box-shadow: inset 0 0 0 1px rgba(79,142,255,.5); font: 16px/1.2 Consolas, "Cascadia Code", ui-monospace, monospace; }
 .sbox svg.i { color: var(--blue-2); width: 20px; height: 20px; }
 .sbox .q { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; }
 .sbox .q .k { color: var(--blue-2); }
@@ -168,7 +180,7 @@ section { padding: 120px 0 0; }
 .search-cols { display: grid; grid-template-columns: 1.15fr 1fr; gap: 40px; align-items: center; }
 .modes { display: grid; gap: 12px; }
 .mode { display: grid; grid-template-columns: 36px 1fr; gap: 14px; }
-.mode h4 { margin: 0 0 4px; font-size: 16.5px; }
+.mode h3 { margin: 0 0 4px; font-size: 16.5px; }
 .mode p { margin: 0; color: var(--sub); font-size: 14.5px; }
 
 /* ── Schaufenster mit Reitern ── */
@@ -182,7 +194,7 @@ section { padding: 120px 0 0; }
 .panel p { color: var(--sub); margin: 0 0 16px; }
 
 /* Umbenennen-Beispiel */
-.rename { background: var(--card); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line-2), 0 30px 70px -30px rgba(79,142,255,.4); padding: 24px; }
+.rename { background: var(--card); border-radius: var(--radius); box-shadow: var(--elev); padding: 24px; }
 .rn-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--input); box-shadow: inset 0 0 0 1px var(--line); font: 15.5px/1.2 Consolas, "Cascadia Code", ui-monospace, monospace; }
 .rn-row .ficon { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; background: rgba(79,142,255,.12); color: var(--blue-2); }
 .rn-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -203,7 +215,7 @@ section { padding: 120px 0 0; }
 .vtab b { font-weight: 650; }
 .vtab small { color: var(--sub); font-size: 13.5px; line-height: 1.45; }
 .vtab:hover { background: var(--card); }
-.vtab[aria-selected="true"] { background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line-2), inset 3px 0 0 var(--blue); }
+.vtab[aria-selected="true"] { background: var(--blue-soft); box-shadow: inset 0 0 0 1px rgba(79,142,255,.35); }
 .vpanel figure.shot img { transition: opacity .2s ease; }
 .vcap { display: none; color: var(--sub); font-size: 15px; margin: 12px 2px 0; }
 
@@ -217,7 +229,7 @@ section { padding: 120px 0 0; }
 /* Skills */
 .skill-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
 .sgroup { background: var(--card); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--line); padding: 18px; }
-.sgroup h4 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+.sgroup h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
 .sgroup ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
 .sgroup li { display: grid; grid-template-columns: 136px 1fr; gap: 10px; font-size: 14px; color: var(--sub); align-items: baseline; }
 .sgroup code { background: none; border: 0; padding: 0; color: var(--blue-2); font-size: 13px; white-space: nowrap; }
@@ -225,7 +237,7 @@ section { padding: 120px 0 0; }
 
 /* Plugins */
 .plugin-cols { display: grid; grid-template-columns: 1fr 1.1fr; gap: 40px; align-items: center; }
-.plugin-cols pre { margin: 0; background: var(--input); border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line-2), 0 30px 70px -30px rgba(79,142,255,.4); padding: 20px 22px; overflow-x: auto; font: 13.5px/1.65 Consolas, "Cascadia Code", ui-monospace, monospace; color: var(--code); }
+.plugin-cols pre { margin: 0; background: var(--input); border-radius: 16px; box-shadow: var(--elev); padding: 20px 22px; overflow-x: auto; font: 13.5px/1.65 Consolas, "Cascadia Code", ui-monospace, monospace; color: var(--code); }
 .plugin-cols .k { color: var(--blue-2); }
 .plugin-cols .s { color: #4ade80; }
 :root[data-theme="light"] .plugin-cols .s { color: #15803d; }
@@ -239,32 +251,49 @@ section { padding: 120px 0 0; }
 .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
 .seg { display: inline-flex; gap: 4px; margin-top: 12px; background: var(--card-2); border-radius: 999px; padding: 4px; flex-wrap: wrap; }
 .seg span { font-size: 13px; padding: 5px 12px; border-radius: 999px; color: var(--sub); }
-.seg span.on { background: var(--blue); color: #fff; }
+.seg span.on { background: var(--btn); color: #fff; }
 
-/* Download mit Menü „Mehr“ */
+/* Download: Hauptknopf für das erkannte System, daneben „Andere Downloads“ mit allen Dateien */
 .dl { position: relative; display: inline-flex; }
-.dl .btn.main { border-radius: 999px 0 0 999px; padding-right: 22px; }
-.dl .btn.more { border-radius: 0 999px 999px 0; padding-left: 14px; padding-right: 18px; margin-left: 1px; }
-.dl-menu { position: absolute; top: calc(100% + 8px); left: 0; min-width: 290px; z-index: 30; background: var(--menu); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line-2), 0 20px 50px rgba(0,0,0,.35); padding: 6px; display: none; }
-.dl-menu.open { display: block; }
-.dl-menu a { display: grid; grid-template-columns: 30px 1fr; gap: 2px 10px; align-items: center; padding: 9px 10px; border-radius: 10px; color: var(--text); }
-.dl-menu a:hover { background: var(--card-2); text-decoration: none; }
-.dl-menu a svg.i { grid-row: span 2; color: var(--blue-2); width: 20px; height: 20px; justify-self: center; }
-.dl-menu a b { font-weight: 600; font-size: 14.5px; }
-.dl-menu a small { color: var(--sub); font-size: 12.5px; }
-.dl-menu a.you b::after { content: attr(data-you); margin-left: 8px; font-size: 11px; font-weight: 600; color: #fff; background: var(--blue); border-radius: 999px; padding: 1px 8px; vertical-align: 1px; }
-.dl-menu hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
+.dl .btn.more svg.i { width: 16px; height: 16px; transition: transform .2s cubic-bezier(.2,.8,.2,1); }
+.dl .btn.more[aria-expanded="true"] { background: var(--hover); box-shadow: inset 0 0 0 1px var(--line-2); }
+.dl .btn.more[aria-expanded="true"] svg.i { transform: rotate(180deg); }
+.dl-menu {
+  position: absolute; top: calc(100% + 10px); left: 0; width: 360px; z-index: 30; padding: 6px;
+  background: var(--win); border-radius: 16px; box-shadow: 0 0 0 1px var(--line-2), 0 24px 60px -12px rgba(0,0,0,.6);
+  visibility: hidden; opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top left;
+  transition: opacity .16s ease, transform .2s cubic-bezier(.2,.8,.2,1), visibility 0s linear .2s;
+}
+.dl-menu.open { visibility: visible; opacity: 1; transform: none; transition: opacity .16s ease, transform .2s cubic-bezier(.2,.8,.2,1), visibility 0s; }
+.dl-menu a { display: grid; grid-template-columns: 36px 1fr auto; gap: 1px 12px; align-items: center; padding: 10px; border-radius: 11px; color: var(--text); outline-offset: -2px; }
+.dl-menu a:hover, .dl-menu a:focus-visible { background: var(--card-2); text-decoration: none; }
+.dl-menu .di { grid-row: span 2; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue-2); }
+.dl-menu .di svg.i { width: 19px; height: 19px; }
+.dl-menu b { font-weight: 600; font-size: 14.5px; line-height: 1.3; display: flex; align-items: center; gap: 8px; }
+.dl-menu small { color: var(--sub); font-size: 12.5px; line-height: 1.35; grid-column: 2; }
+.dl-menu .ft { grid-row: span 2; font: 600 11.5px/1 Consolas, "Cascadia Code", ui-monospace, monospace; color: var(--sub); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); border-radius: 6px; padding: 5px 7px; }
+.dl-menu .beta { font-size: 11.5px; font-weight: 600; color: var(--blue-2); }
+.dl-menu .you-tag { display: none; font-size: 11px; font-weight: 600; color: #fff; background: var(--btn); border-radius: 999px; padding: 3px 9px; line-height: 1.2; }
+.dl-menu a.you .you-tag { display: inline-block; }
+.dl-menu .sep { height: 1px; background: var(--line); margin: 6px 10px; }
+.dl-menu a.all { grid-template-columns: 36px 1fr auto; }
+.dl-menu a.all .arrow { grid-row: span 2; color: var(--sub); width: 16px; height: 16px; }
 .os-note { margin-top: 12px; font-size: 13.5px; color: var(--sub); }
 
 /* Plattformen */
-.platforms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 28px; text-align: left; }
-.platform { background: rgba(255,255,255,.04); box-shadow: inset 0 0 0 1px var(--line); border-radius: 16px; padding: 18px; }
-:root[data-theme="light"] .platform { background: #fff; }
-.platform h4 { margin: 0 0 4px; font-size: 16.5px; }
-.platform p { margin: 0 0 12px; color: var(--sub); font-size: 14px; }
-.platform .btn { width: 100%; }
-.platform.you { box-shadow: inset 0 0 0 2px var(--blue), 0 18px 40px -20px rgba(79,142,255,.6); }
-.platform .you-tag { display: none; font-size: 11px; font-weight: 600; color: #fff; background: var(--blue); border-radius: 999px; padding: 1px 8px; margin-left: 6px; vertical-align: 2px; }
+.platforms { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: auto auto auto auto; column-gap: 0; margin-top: 28px; text-align: left; }
+/* Plattformen im Abschluss: Spalten mit Trennlinien statt Karten in der Karte; das erkannte System hat den Hauptknopf */
+.platform { padding: 6px 22px; display: grid; grid-row: span 4; grid-template-rows: subgrid; align-content: start; }
+.platform + .platform { border-left: 1px solid var(--line); }
+.platform h3 { margin: 0 0 4px; font-size: 16.5px; display: flex; align-items: center; gap: 8px; }
+.platform p { margin: 0 0 14px; color: var(--sub); font-size: 14px; }
+.platform .btn { width: 100%; align-self: end; background: var(--card-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
+.platform .btn:hover { background: var(--hover); }
+.platform.you .btn { background: var(--btn); color: #fff; box-shadow: 0 6px 16px -8px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.22); }
+.platform.you .btn:hover { background: var(--btn-hover); }
+.platform .beta { color: var(--blue-2); font-weight: 600; font-size: 12px; }
+.platform .alt { margin: 10px 0 0; font-size: 13.5px; text-align: center; grid-row: 4; }
+.platform .you-tag { display: none; font-size: 11px; font-weight: 600; color: #fff; background: var(--btn); border-radius: 999px; padding: 3px 9px; line-height: 1.2; }
 .platform.you .you-tag { display: inline-block; }
 
 /* Vergleich */
@@ -292,7 +321,7 @@ details p { margin: 0 0 18px; color: var(--sub); font-size: 15px; }
 .final { position: relative; isolation: isolate; margin-top: 120px; padding: 96px 28px; text-align: center; border-radius: 28px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
 .final::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(600px 320px at 50% 0%, rgba(79,142,255,.35), transparent 70%), radial-gradient(800px 400px at 50% 120%, rgba(79,142,255,.18), transparent 70%), var(--final); }
 .final::after { content: ""; position: absolute; inset: 0; z-index: -1; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 48px 48px; opacity: .35; -webkit-mask-image: radial-gradient(ellipse at center, #000, transparent 70%); mask-image: radial-gradient(ellipse at center, #000, transparent 70%); }
-.final img { width: 72px; height: 72px; filter: drop-shadow(0 10px 30px rgba(79,142,255,.5)); }
+.final img { width: 72px; height: 72px; filter: drop-shadow(0 12px 24px rgba(0,0,0,.55)); }
 .final h2 { font-size: clamp(32px, 4.6vw, 56px); line-height: 1.06; margin: 18px 0 16px; }
 .final p { color: var(--sub); max-width: 560px; margin: 0 auto 30px; }
 .final .cta { justify-content: center; }
@@ -321,11 +350,12 @@ footer a:hover { color: var(--text); }
 .lightbox .cap { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; color: #ccc; font-size: 14px; padding: 0 16px; }
 
 /* sanftes Einblenden beim Scrollen */
-.reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
-.reveal.in { opacity: 1; transform: none; }
+.js .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s cubic-bezier(.2,.8,.2,1), transform .7s cubic-bezier(.2,.8,.2,1); }
+.js .reveal.in { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .reveal { opacity: 1; transform: none; transition: none; }
+  .dl-menu, .dl-menu.open, .dl .btn.more svg.i, .text-link svg.i { transition: none; }
+  .js .reveal { opacity: 1; transform: none; transition: none; }
   .btn, .card, .res { transition: none; }
   .caret { animation: none !important; }
 }
@@ -345,7 +375,10 @@ footer a:hover { color: var(--text); }
   .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
   .grid3, .skill-grid, .custom-grid { grid-template-columns: 1fr 1fr; }
   .plugin-cols { grid-template-columns: 1fr; gap: 28px; }
-  .platforms { grid-template-columns: 1fr; }
+  .platforms { grid-template-columns: 1fr; grid-template-rows: none; }
+  .platform { grid-row: auto; grid-template-rows: none; }
+  .platform { padding: 18px 4px; }
+  .platform + .platform { border-left: 0; border-top: 1px solid var(--line); }
   .faq { grid-template-columns: 1fr; }
   .tabs { justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; margin: 0 -28px 24px; padding: 0 28px 4px; scrollbar-width: none; }
   .tabs::-webkit-scrollbar { display: none; }
@@ -366,9 +399,10 @@ footer a:hover { color: var(--text); }
   .hero { padding: 40px 0 40px; }
   .hero .cta .btn { width: 100%; }
   .hero .cta .dl { width: 100%; }
-  .hero .cta .dl .btn.main { flex: 1; width: auto; }
-  .hero .cta .dl .btn.more { width: auto; }
-  .dl-menu { left: 0; right: 0; min-width: 0; }
+  .hero .cta .text-link { width: 100%; justify-content: center; }
+  .dl-menu { left: 0; right: 0; width: auto; }
+  .gh-label { display: none; }
+  a.pill-btn.gh { width: 36px; padding: 0; justify-content: center; }
   .stat { padding: 22px 10px; }
   section { padding-top: 88px; }
   .head { margin-bottom: 30px; }
@@ -461,6 +495,7 @@ footer a:hover { color: var(--text); }
       <a href="#faq"><span lang="en">FAQ</span><span lang="de">Fragen</span></a>
     </nav>
     <div class="right">
+      <a class="pill-btn gh" href="https://github.com/xJetouss/Foldex" title="Foldex auf GitHub"><svg class="i"><use href="#i-github"/></svg><span class="gh-label">GitHub</span></a>
       <button class="pill-btn" id="lang" type="button" title="Sprache / Language"><svg class="i"><use href="#i-globe"/></svg><span lang="en">Deutsch</span><span lang="de">English</span></button>
       <button class="pill-btn theme-btn" id="theme" type="button" aria-label="Light / dark" title="Hell / Dunkel"><svg class="i sun"><use href="#i-sun"/></svg><svg class="i moon"><use href="#i-moon"/></svg></button>
       <a class="btn small dl-top" href="#download"><svg class="i"><use href="#i-download"/></svg><span lang="en">Download</span><span lang="de">Herunterladen</span></a>
@@ -479,19 +514,19 @@ footer a:hover { color: var(--text); }
         <p class="lead" lang="en">Find any file on any drive as you type. Open almost every file with the space bar. Rename <code>.heic</code> to <code>.jpg</code> and it converts. Plus local AI, terminal and Git – in one fast window.</p>
         <p class="lead" lang="de">Jede Datei auf jedem Laufwerk finden, während du tippst. Fast jede Datei mit der Leertaste ansehen. <code>.heic</code> in <code>.jpg</code> umbenennen – und sie wird umgewandelt. Dazu lokale KI, Terminal und Git – in einem schnellen Fenster.</p>
         <div class="cta">
+          <a class="btn big" id="dl-main" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe"><svg class="i"><use href="#i-download"/></svg><span class="dl-label"><span lang="en">Download for Windows</span><span lang="de">Für Windows laden</span></span></a>
           <div class="dl" id="dl">
-            <a class="btn big main" id="dl-main" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe"><svg class="i"><use href="#i-download"/></svg><span class="dl-label"><span lang="en">Download for Windows</span><span lang="de">Für Windows laden</span></span></a>
-            <button class="btn big more" id="dl-more" type="button" aria-haspopup="true" aria-expanded="false"><span lang="en">More</span><span lang="de">Mehr</span><svg class="i"><use href="#i-chev"/></svg></button>
-            <div class="dl-menu" id="dl-menu" role="menu">
-              <a href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe" data-os="windows"><svg class="i"><use href="#i-win"/></svg><b><span lang="en">Windows installer</span><span lang="de">Windows-Installer</span></b><small><span lang="en">Recommended · automatic updates</span><span lang="de">Empfohlen · automatische Updates</span></small></a>
-              <a href="https://github.com/xJetouss/Foldex/raw/main/dist/foldex.exe"><svg class="i"><use href="#i-box"/></svg><b><span lang="en">Windows portable</span><span lang="de">Windows portabel</span></b><small><span lang="en">foldex.exe – runs without installing</span><span lang="de">foldex.exe – läuft ohne Installation</span></small></a>
-              <a href="https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Linux-x86_64.tar.gz" data-os="linux"><svg class="i"><use href="#i-linux"/></svg><b>Linux</b><small><span lang="en">x86_64 · .tar.gz · needs GTK 3</span><span lang="de">x86_64 · .tar.gz · braucht GTK 3</span></small></a>
-              <a href="https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Android.apk" data-os="android"><svg class="i"><use href="#i-android"/></svg><b>Android <small>Beta</small></b><small><span lang="en">APK for phones and tablets</span><span lang="de">APK für Handy und Tablet</span></small></a>
-              <hr>
-              <a href="https://github.com/xJetouss/Foldex/releases"><svg class="i"><use href="#i-github"/></svg><b><span lang="en">All versions &amp; source</span><span lang="de">Alle Versionen &amp; Quelltext</span></b><small>GitHub Releases</small></a>
+            <button class="btn ghost big more" id="dl-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="dl-menu"><span lang="en">Other downloads</span><span lang="de">Andere Downloads</span><svg class="i"><use href="#i-chev"/></svg></button>
+            <div class="dl-menu" id="dl-menu" role="menu" aria-labelledby="dl-more">
+              <a role="menuitem" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe" data-os="windows"><span class="di"><svg class="i"><use href="#i-win"/></svg></span><b><span lang="en">Windows installer</span><span lang="de">Windows-Installer</span><span class="you-tag"><span lang="en">your system</span><span lang="de">dein System</span></span></b><span class="ft">.exe</span><small><span lang="en">Recommended · automatic updates, no admin rights</span><span lang="de">Empfohlen · automatische Updates, ohne Adminrechte</span></small></a>
+              <a role="menuitem" href="https://github.com/xJetouss/Foldex/raw/main/dist/foldex.exe"><span class="di"><svg class="i"><use href="#i-box"/></svg></span><b><span lang="en">Windows portable</span><span lang="de">Windows portabel</span></b><span class="ft">.exe</span><small><span lang="en">One file, runs without installing</span><span lang="de">Eine Datei, läuft ohne Installation</span></small></a>
+              <a role="menuitem" href="https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Linux-x86_64.tar.gz" data-os="linux"><span class="di"><svg class="i"><use href="#i-linux"/></svg></span><b>Linux<span class="you-tag"><span lang="en">your system</span><span lang="de">dein System</span></span></b><span class="ft">.tar.gz</span><small><span lang="en">x86_64 · unpack, run ./foldex · needs GTK 3</span><span lang="de">x86_64 · entpacken, ./foldex starten · braucht GTK 3</span></small></a>
+              <a role="menuitem" href="https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Android.apk" data-os="android"><span class="di"><svg class="i"><use href="#i-android"/></svg></span><b>Android <span class="beta">Beta</span><span class="you-tag"><span lang="en">your system</span><span lang="de">dein System</span></span></b><span class="ft">.apk</span><small><span lang="en">For phones and tablets</span><span lang="de">Für Handy und Tablet</span></small></a>
+              <div class="sep" role="separator"></div>
+              <a role="menuitem" class="all" href="https://github.com/xJetouss/Foldex/releases"><span class="di"><svg class="i"><use href="#i-github"/></svg></span><b><span lang="en">All versions &amp; source code</span><span lang="de">Alle Versionen &amp; Quellcode</span></b><svg class="i arrow"><use href="#i-right"/></svg><small><span lang="en">Releases on GitHub</span><span lang="de">Releases auf GitHub</span></small></a>
             </div>
           </div>
-          <a class="btn ghost big" href="#search"><span lang="en">See the search</span><span lang="de">Suche ansehen</span></a>
+          <a class="text-link" href="#search"><span lang="en">See the search</span><span lang="de">Suche ansehen</span><svg class="i"><use href="#i-right"/></svg></a>
         </div>
         <div class="os-note" id="os-note" hidden></div>
         <div class="sub-links"><span lang="en">Free · no account · no admin rights</span><span lang="de">Kostenlos · ohne Konto · ohne Administratorrechte</span> · <span lang="en">Windows, Linux &amp; Android</span><span lang="de">Windows, Linux &amp; Android</span></div>
@@ -516,7 +551,6 @@ footer a:hover { color: var(--text); }
   <section id="search">
     <div class="wrap">
       <div class="head reveal">
-        <span class="kicker"><span lang="en">Search</span><span lang="de">Suche</span></span>
         <h2 class="display" lang="en">Find anything.<br><span class="blue">On every drive.</span></h2>
         <h2 class="display" lang="de">Alles finden.<br><span class="blue">Auf jedem Laufwerk.</span></h2>
         <p lang="en">Foldex indexes your drives in the background. Type a few letters and the results are there – by name, by type, or by what's written inside.</p>
@@ -529,9 +563,9 @@ footer a:hover { color: var(--text); }
           <div class="search-meta"><span id="scount"></span><span>Index: C:\ D:\ E:\</span></div>
         </div>
         <div class="modes reveal">
-          <div class="mode card"><span class="ic"><svg class="i"><use href="#i-bolt"/></svg></span><div><h4 lang="en">Instant filter</h4><h4 lang="de">Sofortsuche im Ordner</h4><p lang="en">Start typing in any folder – the list filters as you type, even with tens of thousands of files.</p><p lang="de">Im Ordner einfach lostippen – die Liste filtert sofort, auch bei zehntausenden Dateien.</p></div></div>
-          <div class="mode card"><span class="ic"><svg class="i"><use href="#i-drive"/></svg></span><div><h4 lang="en">Index search across all drives</h4><h4 lang="de">Index-Suche über alle Laufwerke</h4><p lang="en">Words in any order, exclusions, file types and folders – the index answers while you type.</p><p lang="de">Wörter in beliebiger Reihenfolge, Ausschlüsse, Dateitypen und Ordner – der Index antwortet, während du tippst.</p></div></div>
-          <div class="mode card"><span class="ic"><svg class="i"><use href="#i-scan"/></svg></span><div><h4 lang="en">Content search with OCR</h4><h4 lang="de">Inhaltssuche mit Texterkennung</h4><p lang="en">Searches inside PDFs, documents and photos of receipts – and explains each hit: terms, date, amount and the spot in the text.</p><p lang="de">Sucht in PDFs, Dokumenten und Fotos von Belegen – und erklärt jeden Treffer: Begriffe, Datum, Betrag und die Stelle im Text.</p></div></div>
+          <div class="mode card"><span class="ic"><svg class="i"><use href="#i-bolt"/></svg></span><div><h3 lang="en">Instant filter</h3><h3 lang="de">Sofortsuche im Ordner</h3><p lang="en">Start typing in any folder – the list filters as you type, even with tens of thousands of files.</p><p lang="de">Im Ordner einfach lostippen – die Liste filtert sofort, auch bei zehntausenden Dateien.</p></div></div>
+          <div class="mode card"><span class="ic"><svg class="i"><use href="#i-drive"/></svg></span><div><h3 lang="en">Index search across all drives</h3><h3 lang="de">Index-Suche über alle Laufwerke</h3><p lang="en">Words in any order, exclusions, file types and folders – the index answers while you type.</p><p lang="de">Wörter in beliebiger Reihenfolge, Ausschlüsse, Dateitypen und Ordner – der Index antwortet, während du tippst.</p></div></div>
+          <div class="mode card"><span class="ic"><svg class="i"><use href="#i-scan"/></svg></span><div><h3 lang="en">Content search with OCR</h3><h3 lang="de">Inhaltssuche mit Texterkennung</h3><p lang="en">Searches inside PDFs, documents and photos of receipts – and explains each hit: terms, date, amount and the spot in the text.</p><p lang="de">Sucht in PDFs, Dokumenten und Fotos von Belegen – und erklärt jeden Treffer: Begriffe, Datum, Betrag und die Stelle im Text.</p></div></div>
         </div>
       </div>
       <div class="syntax reveal">
@@ -550,7 +584,6 @@ footer a:hover { color: var(--text); }
   <section id="features">
     <div class="wrap">
       <div class="head reveal">
-        <span class="kicker"><span lang="en">Features</span><span lang="de">Funktionen</span></span>
         <h2 class="display" lang="en">All of this.<br><span class="blue">In one window.</span></h2>
         <h2 class="display" lang="de">All das.<br><span class="blue">In einem Fenster.</span></h2>
       </div>
@@ -643,7 +676,6 @@ footer a:hover { color: var(--text); }
   <section id="quicklook">
     <div class="wrap">
       <div class="head reveal">
-        <span class="kicker"><span lang="en">Quick Look</span><span lang="de">Schnellansicht</span></span>
         <h2 class="display" lang="en">Press space.<br><span class="blue">See everything.</span></h2>
         <h2 class="display" lang="de">Leertaste drücken.<br><span class="blue">Alles sehen.</span></h2>
         <p lang="en">Code, Office, 3D models, fonts, videos, PDFs and archives – without opening another app.</p>
@@ -669,7 +701,6 @@ footer a:hover { color: var(--text); }
   <section id="ai">
     <div class="wrap">
       <div class="head reveal">
-        <span class="kicker"><span lang="en">Artificial intelligence</span><span lang="de">Künstliche Intelligenz</span></span>
         <h2 class="display" lang="en">AI that works<br><span class="blue">on your PC.</span></h2>
         <h2 class="display" lang="de">KI, die bei dir<br><span class="blue">auf dem PC bleibt.</span></h2>
         <p lang="en">Use Claude, OpenAI and other services – or run your own models locally. Files, photos and recordings only leave your PC if you want them to.</p>
@@ -687,9 +718,9 @@ footer a:hover { color: var(--text); }
         </div>
       </div>
       <div class="grid3 reveal">
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-bot"/></svg></span><span lang="en">Agents</span><span lang="de">Agenten</span></h4><p lang="en">Claude Code, Codex and Gemini CLI right in the folder – with approval for every change and undo.</p><p lang="de">Claude Code, Codex und Gemini CLI direkt im Ordner – mit Freigabe für jede Änderung und Rückgängig.</p></div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-cpu"/></svg></span><span lang="en">Local models</span><span lang="de">Lokale Modelle</span></h4><p lang="en">Download and run text and image models (SD-Turbo, FLUX …) that fit your graphics card and RAM.</p><p lang="de">Text- und Bildmodelle (SD-Turbo, FLUX …) laden und ausführen, passend zu Grafikkarte und RAM.</p></div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-mic"/></svg></span><span lang="en">Voice input</span><span lang="de">Spracheingabe</span></h4><p lang="en">Dictate with Whisper, locally. No audio leaves your PC.</p><p lang="de">Diktieren mit Whisper, lokal. Kein Ton verlässt den PC.</p></div>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-bot"/></svg></span><span lang="en">Agents</span><span lang="de">Agenten</span></h3><p lang="en">Claude Code, Codex and Gemini CLI right in the folder – with approval for every change and undo.</p><p lang="de">Claude Code, Codex und Gemini CLI direkt im Ordner – mit Freigabe für jede Änderung und Rückgängig.</p></div>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-cpu"/></svg></span><span lang="en">Local models</span><span lang="de">Lokale Modelle</span></h3><p lang="en">Download and run text and image models (SD-Turbo, FLUX …) that fit your graphics card and RAM.</p><p lang="de">Text- und Bildmodelle (SD-Turbo, FLUX …) laden und ausführen, passend zu Grafikkarte und RAM.</p></div>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-mic"/></svg></span><span lang="en">Voice input</span><span lang="de">Spracheingabe</span></h3><p lang="en">Dictate with Whisper, locally. No audio leaves your PC.</p><p lang="de">Diktieren mit Whisper, lokal. Kein Ton verlässt den PC.</p></div>
       </div>
     </div>
   </section>
@@ -699,7 +730,6 @@ footer a:hover { color: var(--text); }
   <section id="skills">
     <div class="wrap">
       <div class="head reveal">
-        <span class="kicker">Skills</span>
         <h2 class="display" lang="en">Type a slash.<br><span class="blue">Get a pro prompt.</span></h2>
         <h2 class="display" lang="de">Schrägstrich tippen.<br><span class="blue">Profi-Prompt bekommen.</span></h2>
         <p lang="en">53 built-in skills for files, code, writing, learning and data – each one a carefully written prompt. Every skill has an English name; type it and the AI answers in English.</p>
@@ -707,7 +737,7 @@ footer a:hover { color: var(--text); }
       </div>
       <div class="skill-grid reveal">
         <div class="sgroup">
-          <h4><span lang="en">Files</span><span lang="de">Dateien</span></h4>
+          <h3><span lang="en">Files</span><span lang="de">Dateien</span></h3>
           <ul>
             <li><code lang="en">/tidy</code><code lang="de">/aufräumen</code><span><span lang="en">Sort a folder into subfolders</span><span lang="de">Ordner in Unterordner sortieren</span></span></li>
             <li><code lang="en">/rename</code><code lang="de">/umbenennen</code><span><span lang="en">Consistent, meaningful file names</span><span lang="de">Einheitliche, sprechende Dateinamen</span></span></li>
@@ -718,7 +748,7 @@ footer a:hover { color: var(--text); }
           </ul>
         </div>
         <div class="sgroup">
-          <h4>Code</h4>
+          <h3>Code</h3>
           <ul>
             <li><code lang="en">/explain</code><code lang="de">/erklären</code><span><span lang="en">Explain code step by step</span><span lang="de">Code Schritt für Schritt erklären</span></span></li>
             <li><code>/commit</code><span><span lang="en">Commit message from your changes</span><span lang="de">Commit-Nachricht aus den Änderungen</span></span></li>
@@ -729,7 +759,7 @@ footer a:hover { color: var(--text); }
           </ul>
         </div>
         <div class="sgroup">
-          <h4><span lang="en">Writing</span><span lang="de">Schreiben</span></h4>
+          <h3><span lang="en">Writing</span><span lang="de">Schreiben</span></h3>
           <ul>
             <li><code lang="en">/proofread</code><code lang="de">/korrigieren</code><span><span lang="en">Fix spelling and grammar</span><span lang="de">Rechtschreibung und Grammatik</span></span></li>
             <li><code lang="en">/shorter</code><code lang="de">/kürzer</code><span><span lang="en">Shorten, keep the core</span><span lang="de">Kürzen, Kern behalten</span></span></li>
@@ -740,7 +770,7 @@ footer a:hover { color: var(--text); }
           </ul>
         </div>
         <div class="sgroup">
-          <h4><span lang="en">Learning</span><span lang="de">Lernen</span></h4>
+          <h3><span lang="en">Learning</span><span lang="de">Lernen</span></h3>
           <ul>
             <li><code lang="en">/eli5</code><code lang="de">/einfach</code><span><span lang="en">Explained like you are five</span><span lang="de">Wie für ein Kind erklärt</span></span></li>
             <li><code>/quiz</code><span><span lang="en">Quiz questions on a topic</span><span lang="de">Quizfragen zum Thema</span></span></li>
@@ -751,7 +781,7 @@ footer a:hover { color: var(--text); }
           </ul>
         </div>
         <div class="sgroup">
-          <h4><span lang="en">Data</span><span lang="de">Daten</span></h4>
+          <h3><span lang="en">Data</span><span lang="de">Daten</span></h3>
           <ul>
             <li><code>/csv</code><span><span lang="en">Analyse CSV or Excel</span><span lang="de">CSV oder Excel auswerten</span></span></li>
             <li><code lang="en">/table</code><code lang="de">/tabelle</code><span><span lang="en">Turn text into a table</span><span lang="de">Text als Tabelle</span></span></li>
@@ -762,7 +792,7 @@ footer a:hover { color: var(--text); }
           </ul>
         </div>
         <div class="sgroup">
-          <h4><span lang="en">Images &amp; more</span><span lang="de">Bilder &amp; mehr</span></h4>
+          <h3><span lang="en">Images &amp; more</span><span lang="de">Bilder &amp; mehr</span></h3>
           <ul>
             <li><code lang="en">/image-prompt</code><code lang="de">/bild</code><span><span lang="en">Prompt for the image AI</span><span lang="de">Prompt für die Bild-KI</span></span></li>
             <li><code>/alt-text</code><span><span lang="en">Image description for accessibility</span><span lang="de">Bildbeschreibung für Barrierefreiheit</span></span></li>
@@ -782,7 +812,6 @@ footer a:hover { color: var(--text); }
   <section id="plugins">
     <div class="wrap">
       <div class="head reveal">
-        <span class="kicker">Plugins</span>
         <h2 class="display" lang="en">Your commands.<br><span class="blue">Right in the menu.</span></h2>
         <h2 class="display" lang="de">Deine Befehle.<br><span class="blue">Direkt im Menü.</span></h2>
         <p lang="en">A small <code>plugin.json</code> adds your own commands to the right-click menu and the command palette – run any program or script with the selected files.</p>
@@ -828,14 +857,13 @@ footer a:hover { color: var(--text); }
   <section id="customize">
     <div class="wrap">
       <div class="head reveal">
-        <span class="kicker"><span lang="en">Customize</span><span lang="de">Anpassen</span></span>
         <h2 class="display" lang="en">Make it yours.<br><span class="blue">Down to the corners.</span></h2>
         <h2 class="display" lang="de">Mach es zu deinem.<br><span class="blue">Bis in die Ecken.</span></h2>
         <p lang="en">Size, density, corners, accent colour and font – change them in the settings and see the result instantly. Try the colours here:</p>
         <p lang="de">Größe, Zeilenhöhe, Ecken, Akzentfarbe und Schrift – in den Einstellungen ändern und sofort sehen. Probier die Farben hier aus:</p>
       </div>
       <div class="custom-grid reveal">
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-palette"/></svg></span><span lang="en">Accent colour</span><span lang="de">Akzentfarbe</span></h4>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-palette"/></svg></span><span lang="en">Accent colour</span><span lang="de">Akzentfarbe</span></h3>
           <p lang="en">Your own colour for selection, buttons and highlights – or the theme's.</p><p lang="de">Eigene Farbe für Auswahl, Knöpfe und Markierungen – oder die des Themes.</p>
           <div class="swatches" id="swatches" aria-label="Accent colour">
             <button class="swatch" style="background:#4f8eff" data-c="#4f8eff" aria-pressed="true" title="Blue"></button>
@@ -847,22 +875,22 @@ footer a:hover { color: var(--text); }
             <button class="swatch" style="background:#14b8a6" data-c="#14b8a6" aria-pressed="false" title="Teal"></button>
           </div>
         </div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-zoom"/></svg></span><span lang="en">Interface size</span><span lang="de">Größe der Oberfläche</span></h4>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-zoom"/></svg></span><span lang="en">Interface size</span><span lang="de">Größe der Oberfläche</span></h3>
           <p lang="en">Everything bigger or smaller – text, icons and spacing.</p><p lang="de">Alles größer oder kleiner – Schrift, Symbole und Abstände.</p>
           <div class="seg"><span>90 %</span><span class="on">100 %</span><span>110 %</span><span>125 %</span><span>150 %</span></div>
         </div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-rows"/></svg></span><span lang="en">Row height</span><span lang="de">Zeilenhöhe</span></h4>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-rows"/></svg></span><span lang="en">Row height</span><span lang="de">Zeilenhöhe</span></h3>
           <p lang="en">Compact for many files, generous for touch screens.</p><p lang="de">Kompakt für viele Dateien, großzügig für Touchscreens.</p>
           <div class="seg"><span lang="en">Compact</span><span lang="de">Kompakt</span><span class="on">Normal</span><span lang="en">Generous</span><span lang="de">Großzügig</span></div>
         </div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-square"/></svg></span><span lang="en">Corners</span><span lang="de">Ecken</span></h4>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-square"/></svg></span><span lang="en">Corners</span><span lang="de">Ecken</span></h3>
           <p lang="en">Square, normal or round – windows, menus and buttons.</p><p lang="de">Eckig, normal oder rund – Fenster, Menüs und Knöpfe.</p>
           <div class="seg"><span lang="en">Square</span><span lang="de">Eckig</span><span class="on">Normal</span><span lang="en">Round</span><span lang="de">Rund</span></div>
         </div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-text"/></svg></span><span lang="en">Font</span><span lang="de">Schrift</span></h4>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-text"/></svg></span><span lang="en">Font</span><span lang="de">Schrift</span></h3>
           <p lang="en">Segoe UI, Arial, Calibri, Verdana … or any TTF/OTF file you like.</p><p lang="de">Segoe UI, Arial, Calibri, Verdana … oder jede TTF/OTF-Datei, die du magst.</p>
         </div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-sliders"/></svg></span><span lang="en">Themes, icons, toolbar</span><span lang="de">Themes, Icons, Leiste</span></h4>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-sliders"/></svg></span><span lang="en">Themes, icons, toolbar</span><span lang="de">Themes, Icons, Leiste</span></h3>
           <p lang="en">Colour themes, three icon sets, your own toolbar buttons and a key for every command.</p><p lang="de">Farbthemen, drei Icon-Sets, eigene Knöpfe in der Schnellleiste und eine Taste für jeden Befehl.</p>
         </div>
       </div>
@@ -873,20 +901,19 @@ footer a:hover { color: var(--text); }
   <section id="more">
     <div class="wrap">
       <div class="head reveal">
-        <span class="kicker"><span lang="en">And more</span><span lang="de">Und mehr</span></span>
         <h2 class="display" lang="en">Small things.<br><span class="blue">Big time savers.</span></h2>
         <h2 class="display" lang="de">Kleine Dinge.<br><span class="blue">Viel gesparte Zeit.</span></h2>
       </div>
       <div class="grid3 reveal">
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-cloud"/></svg></span><span lang="en">Cloud drives</span><span lang="de">Cloud-Laufwerke</span></h4><p lang="en">Google Drive, OneDrive, iCloud, Dropbox and more as a drive – with live sync and a cloud recycle bin.</p><p lang="de">Google Drive, OneDrive, iCloud, Dropbox und mehr als Laufwerk – mit Live-Abgleich und Cloud-Papierkorb.</p></div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-share"/></svg></span><span lang="en">Share</span><span lang="de">Teilen</span></h4><p lang="en">To phones on your Wi-Fi via LocalSend, to WhatsApp or as a link – no detours.</p><p lang="de">An Handys im WLAN per LocalSend, an WhatsApp oder per Link – ohne Umweg.</p></div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-archive"/></svg></span><span lang="en">Archives</span><span lang="de">Archive</span></h4><p lang="en">Open, extract and create ZIP, 7z, RAR, TAR, GZ, XZ and ZST.</p><p lang="de">ZIP, 7z, RAR, TAR, GZ, XZ, ZST öffnen, entpacken und packen.</p></div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-printer"/></svg></span><span lang="en">Printing</span><span lang="de">Drucken</span></h4><p lang="en">Print PDFs and images with live preview, page selection and black &amp; white.</p><p lang="de">PDFs und Bilder drucken, mit Live-Vorschau, Seitenauswahl und Schwarz-Weiß.</p></div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-file"/></svg></span><span lang="en">PDF tools</span><span lang="de">PDF-Werkzeuge</span></h4><p lang="en">View pages, copy text (with OCR too), turn documents into PDF.</p><p lang="de">Seiten ansehen, Text kopieren (auch per Texterkennung), Dokumente in PDF umwandeln.</p></div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-home"/></svg></span><span lang="en">Start page</span><span lang="de">Startseite</span></h4><p lang="en">Quick access, drives, cloud and your own wallpapers at a glance.</p><p lang="de">Schnellzugriff, Laufwerke, Cloud und eigene Hintergrundbilder auf einen Blick.</p></div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-palette"/></svg></span><span lang="en">Themes &amp; icons</span><span lang="de">Themes &amp; Icons</span></h4><p lang="en">Light, dark and many colour themes; Material, Catppuccin and VS Code icons.</p><p lang="de">Hell, dunkel und viele Farbthemen; Material-, Catppuccin- und VS-Code-Icons.</p></div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-keyboard"/></svg></span><span lang="en">Keyboard shortcuts</span><span lang="de">Tastenkürzel</span></h4><p lang="en">Every command can get its own key – freely assignable, with conflict check.</p><p lang="de">Jeder Befehl mit eigener Taste – frei belegbar, mit Konfliktprüfung.</p></div>
-        <div class="card"><h4><span class="ic"><svg class="i"><use href="#i-git"/></svg></span>Git</h4><p lang="en">Status per file, branches and commits right in the file list.</p><p lang="de">Status je Datei, Zweige und Commits direkt in der Dateiliste.</p></div>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-cloud"/></svg></span><span lang="en">Cloud drives</span><span lang="de">Cloud-Laufwerke</span></h3><p lang="en">Google Drive, OneDrive, iCloud, Dropbox and more as a drive – with live sync and a cloud recycle bin.</p><p lang="de">Google Drive, OneDrive, iCloud, Dropbox und mehr als Laufwerk – mit Live-Abgleich und Cloud-Papierkorb.</p></div>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-share"/></svg></span><span lang="en">Share</span><span lang="de">Teilen</span></h3><p lang="en">To phones on your Wi-Fi via LocalSend, to WhatsApp or as a link – no detours.</p><p lang="de">An Handys im WLAN per LocalSend, an WhatsApp oder per Link – ohne Umweg.</p></div>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-archive"/></svg></span><span lang="en">Archives</span><span lang="de">Archive</span></h3><p lang="en">Open, extract and create ZIP, 7z, RAR, TAR, GZ, XZ and ZST.</p><p lang="de">ZIP, 7z, RAR, TAR, GZ, XZ, ZST öffnen, entpacken und packen.</p></div>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-printer"/></svg></span><span lang="en">Printing</span><span lang="de">Drucken</span></h3><p lang="en">Print PDFs and images with live preview, page selection and black &amp; white.</p><p lang="de">PDFs und Bilder drucken, mit Live-Vorschau, Seitenauswahl und Schwarz-Weiß.</p></div>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-file"/></svg></span><span lang="en">PDF tools</span><span lang="de">PDF-Werkzeuge</span></h3><p lang="en">View pages, copy text (with OCR too), turn documents into PDF.</p><p lang="de">Seiten ansehen, Text kopieren (auch per Texterkennung), Dokumente in PDF umwandeln.</p></div>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-home"/></svg></span><span lang="en">Start page</span><span lang="de">Startseite</span></h3><p lang="en">Quick access, drives, cloud and your own wallpapers at a glance.</p><p lang="de">Schnellzugriff, Laufwerke, Cloud und eigene Hintergrundbilder auf einen Blick.</p></div>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-palette"/></svg></span><span lang="en">Themes &amp; icons</span><span lang="de">Themes &amp; Icons</span></h3><p lang="en">Light, dark and many colour themes; Material, Catppuccin and VS Code icons.</p><p lang="de">Hell, dunkel und viele Farbthemen; Material-, Catppuccin- und VS-Code-Icons.</p></div>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-keyboard"/></svg></span><span lang="en">Keyboard shortcuts</span><span lang="de">Tastenkürzel</span></h3><p lang="en">Every command can get its own key – freely assignable, with conflict check.</p><p lang="de">Jeder Befehl mit eigener Taste – frei belegbar, mit Konfliktprüfung.</p></div>
+        <div class="card"><h3><span class="ic"><svg class="i"><use href="#i-git"/></svg></span>Git</h3><p lang="en">Status per file, branches and commits right in the file list.</p><p lang="de">Status je Datei, Zweige und Commits direkt in der Dateiliste.</p></div>
       </div>
 
       <div class="head reveal" style="margin-top:96px">
@@ -964,23 +991,23 @@ footer a:hover { color: var(--text); }
         <p lang="de">Der Installer richtet Foldex für deinen Benutzer ein – ohne Administratorrechte – und holt immer die neueste Version von GitHub.</p>
         <div class="platforms">
           <div class="platform" data-os="windows">
-            <h4><svg class="i"><use href="#i-win"/></svg> Windows<span class="you-tag"><span lang="en">your system</span><span lang="de">dein System</span></span></h4>
+            <h3><svg class="i"><use href="#i-win"/></svg> Windows<span class="you-tag"><span lang="en">your system</span><span lang="de">dein System</span></span></h3>
             <p lang="en">Installer with automatic updates – or the portable EXE.</p><p lang="de">Installer mit automatischen Updates – oder die portable EXE.</p>
             <a class="btn" href="https://github.com/xJetouss/Foldex/raw/main/dist/Foldex-Installer.exe"><svg class="i"><use href="#i-download"/></svg><span lang="en">Installer</span><span lang="de">Installer</span></a>
-            <p style="margin:10px 0 0;text-align:center"><a href="https://github.com/xJetouss/Foldex/raw/main/dist/foldex.exe">Portable EXE</a></p>
+            <p class="alt"><a href="https://github.com/xJetouss/Foldex/raw/main/dist/foldex.exe"><span lang="en">or the portable EXE</span><span lang="de">oder die portable EXE</span></a></p>
           </div>
           <div class="platform" data-os="linux">
-            <h4><svg class="i"><use href="#i-linux"/></svg> Linux<span class="you-tag"><span lang="en">your system</span><span lang="de">dein System</span></span></h4>
+            <h3><svg class="i"><use href="#i-linux"/></svg> Linux<span class="you-tag"><span lang="en">your system</span><span lang="de">dein System</span></span></h3>
             <p lang="en">x86_64 program – unpack, run <code>./foldex</code>. Needs GTK 3.</p><p lang="de">x86_64-Programm – entpacken, <code>./foldex</code> starten. Braucht GTK 3.</p>
             <a class="btn" href="https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Linux-x86_64.tar.gz"><svg class="i"><use href="#i-download"/></svg>.tar.gz</a>
           </div>
           <div class="platform" data-os="android">
-            <h4><svg class="i"><use href="#i-android"/></svg> Android <small style="color:var(--blue-2);font-weight:600">Beta</small><span class="you-tag"><span lang="en">your system</span><span lang="de">dein System</span></span></h4>
+            <h3><svg class="i"><use href="#i-android"/></svg> Android <small class="beta">Beta</small><span class="you-tag"><span lang="en">your system</span><span lang="de">dein System</span></span></h3>
             <p lang="en">The core app for phones and tablets: browse, preview, search.</p><p lang="de">Die Kern-App für Handy und Tablet: Dateien ansehen, Vorschau, Suche.</p>
             <a class="btn" href="https://github.com/xJetouss/Foldex/releases/latest/download/Foldex-Android.apk"><svg class="i"><use href="#i-download"/></svg>APK</a>
           </div>
         </div>
-        <p class="req">Version 0.9.10 · <a href="https://github.com/xJetouss/Foldex/releases"><span lang="en">All versions</span><span lang="de">Alle Versionen</span></a></p>
+        <p class="req">Version 0.9.11 · <a href="https://github.com/xJetouss/Foldex/releases"><span lang="en">All versions</span><span lang="de">Alle Versionen</span></a></p>
       </div>
 
       <div class="contact reveal">
@@ -996,7 +1023,7 @@ footer a:hover { color: var(--text); }
 
 <footer>
   <div class="wrap">
-    <span>Foldex 0.9.10 · <a href="mailto:jetouss@tssnt.dev">jetouss@tssnt.dev</a> · <span lang="en">Screenshots show a sample folder.</span><span lang="de">Bildschirmfotos zeigen einen Beispielordner.</span></span>
+    <span>Foldex 0.9.11 · <a href="mailto:jetouss@tssnt.dev">jetouss@tssnt.dev</a> · <span lang="en">Screenshots show a sample folder.</span><span lang="de">Bildschirmfotos zeigen einen Beispielordner.</span></span>
     <nav>
       <a href="https://github.com/xJetouss/Foldex">GitHub</a>
       <a href="https://github.com/xJetouss/Foldex/releases"><span lang="en">Versions</span><span lang="de">Versionen</span></a>
@@ -1007,7 +1034,6 @@ footer a:hover { color: var(--text); }
 </footer>
 
 <div class="lightbox" id="lb" role="dialog" aria-modal="true" aria-label="Screenshot">
-  <img alt="">
   <button class="x" type="button" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
   <button class="prev" type="button" aria-label="Previous"><svg class="i"><use href="#i-left"/></svg></button>
   <button class="next" type="button" aria-label="Next"><svg class="i"><use href="#i-right"/></svg></button>
@@ -1079,20 +1105,39 @@ footer a:hover { color: var(--text); }
                                     : '<span lang="en">There is no iPhone/iPad version yet – Foldex runs on Windows, Linux and Android.</span><span lang="de">Für iPhone/iPad gibt es noch keine Version – Foldex läuft auf Windows, Linux und Android.</span>';
       note.hidden = false;
     }
-    $$('.dl-menu a[data-os]').forEach(a => { a.classList.toggle('you', a.dataset.os === OS); a.querySelector('b').dataset.you = root.lang === 'de' ? 'dein System' : 'your system'; });
+    $$('.dl-menu a[data-os]').forEach(a => a.classList.toggle('you', a.dataset.os === OS));
     $$('.platform[data-os]').forEach(c => c.classList.toggle('you', c.dataset.os === OS));
   }
-  const dlMenu = $('#dl-menu'), dlMore = $('#dl-more');
-  const setDl = open => { dlMenu.classList.toggle('open', open); dlMore.setAttribute('aria-expanded', open); };
-  dlMore.addEventListener('click', e => { e.stopPropagation(); setDl(!dlMenu.classList.contains('open')); });
+  // „Andere Downloads“: Menü mit Pfeiltasten, Esc schließt und gibt den Fokus zurück
+  const dlMenu = $('#dl-menu'), dlMore = $('#dl-more'), dlItems = $$('a', dlMenu);
+  const dlOpen = () => dlMenu.classList.contains('open');
+  const setDl = (open, focus) => {
+    dlMenu.classList.toggle('open', open);
+    dlMore.setAttribute('aria-expanded', open);
+    if (open && focus) (dlItems.find(a => a.classList.contains('you')) || dlItems[0]).focus();
+  };
+  dlMore.addEventListener('click', e => { e.stopPropagation(); setDl(!dlOpen(), e.detail === 0); });
+  dlMore.addEventListener('keydown', e => { if (e.key === 'ArrowDown') { e.preventDefault(); setDl(true, true); } });
+  dlMenu.addEventListener('keydown', e => {
+    const i = dlItems.indexOf(document.activeElement);
+    const go = k => { e.preventDefault(); dlItems[(k + dlItems.length) % dlItems.length].focus(); };
+    if (e.key === 'ArrowDown') go(i + 1);
+    else if (e.key === 'ArrowUp') go(i - 1);
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(dlItems.length - 1);
+    else if (e.key === 'Escape') { e.preventDefault(); setDl(false); dlMore.focus(); }
+    else if (e.key === 'Tab') setDl(false);
+  });
   document.addEventListener('click', e => { if (!e.target.closest('#dl')) setDl(false); });
-  addEventListener('keydown', e => { if (e.key === 'Escape') setDl(false); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && dlOpen()) { setDl(false); dlMore.focus(); } });
 
   // Akzentfarbe ausprobieren (wie in Foldex: Einstellungen → Darstellung)
   $$('.swatch').forEach(b => b.addEventListener('click', () => {
     $$('.swatch').forEach(o => o.setAttribute('aria-pressed', o === b));
     root.style.setProperty('--blue', b.dataset.c);
     root.style.setProperty('--blue-2', b.dataset.c);
+    root.style.setProperty('--btn', b.dataset.c);
+    root.style.setProperty('--btn-hover', b.dataset.c);
   }));
 
   // Menü auf schmalen Bildschirmen
@@ -1227,9 +1272,10 @@ footer a:hover { color: var(--text); }
   }
 
   // Bildschirmfotos groß ansehen (Pfeiltasten und Wischen)
-  const lb = $('#lb'), lbi = $('img', lb), cap = $('.cap', lb);
+  const lb = $('#lb'), lbi = document.createElement('img'), cap = $('.cap', lb);
+  lbi.alt = ''; lbi.hidden = true; lb.prepend(lbi);
   let shots = [], cur = 0;
-  const show = i => { cur = (i + shots.length) % shots.length; lbi.src = shots[cur].src; lbi.alt = shots[cur].alt; cap.textContent = shots[cur].alt; };
+  const show = i => { cur = (i + shots.length) % shots.length; lbi.src = shots[cur].src; lbi.hidden = false; lbi.alt = shots[cur].alt; cap.textContent = shots[cur].alt; };
   const close = () => lb.classList.remove('on');
   document.addEventListener('click', e => {
     const img = e.target.closest('figure.shot img');

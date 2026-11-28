@@ -3151,8 +3151,14 @@ impl App {
                 if self.st.preview_open.contains(open_kind(&p)) {
                     self.open_view(p);
                 } else {
+                    // APK: in der Dateien-App von Android öffnen – dort installiert ein Tippen
                     #[cfg(target_os = "android")]
-                    if let Err(e) = android::view(&p, false) {
+                    if open_kind(&p) == "apk" {
+                        match p.parent().map(android::show_in_files) {
+                            Some(Ok(())) => self.status = format!("Zum Installieren „{}“ in der Dateien-App antippen", p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()),
+                            _ => self.open_view(p),
+                        }
+                    } else if let Err(e) = android::view(&p, false) {
                         // keine App für diese Datei: dann eben die Vorschau
                         self.status = format!("Keine App zum Öffnen gefunden ({e}) – Vorschau");
                         self.open_view(p);
