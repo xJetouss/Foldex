@@ -83,6 +83,18 @@ pub struct Settings {
     pub density: u8,
     /// Schrift der Oberfläche: leer = Systemschrift, sonst Pfad einer TTF/OTF-Datei
     pub ui_font: String,
+    /// Dateiarten, die beim Öffnen in der Foldex-Vorschau erscheinen statt in einer anderen App
+    /// (image, video, audio, pdf, text, archive, apk, office)
+    pub preview_open: BTreeSet<String>,
+}
+
+/// Standard: auf dem Handy öffnet Foldex Bilder, Videos, Musik, PDF und Text selbst, am PC die Standard-App.
+pub fn default_preview_open() -> BTreeSet<String> {
+    if cfg!(target_os = "android") {
+        ["image", "video", "audio", "pdf", "text"].iter().map(|s| s.to_string()).collect()
+    } else {
+        BTreeSet::new()
+    }
 }
 
 impl Default for Settings {
@@ -126,6 +138,7 @@ impl Default for Settings {
             corners: 1,
             density: 1,
             ui_font: String::new(),
+            preview_open: default_preview_open(),
         }
     }
 }
@@ -193,6 +206,7 @@ impl Settings {
                     "corners" => s.corners = v.trim().parse::<u8>().unwrap_or(1).min(2),
                     "density" => s.density = v.trim().parse::<u8>().unwrap_or(1).min(2),
                     "ui_font" => s.ui_font = v.trim().to_string(),
+                    "preview_open" => s.preview_open = v.split(',').map(str::trim).filter(|x| !x.is_empty()).map(str::to_string).collect(),
                     k if k.starts_with("agent_model.") => {
                         s.agent_model.insert(k["agent_model.".len()..].to_string(), v.trim().to_string());
                     }
@@ -277,13 +291,14 @@ impl Settings {
             extra.push_str(&format!("agent_model.{k}={}\n", one_line(v)));
         }
         extra.push_str(&format!(
-            "plugins_off={}\nui_zoom={}\naccent={}\ncorners={}\ndensity={}\nui_font={}\n",
+            "plugins_off={}\nui_zoom={}\naccent={}\ncorners={}\ndensity={}\nui_font={}\npreview_open={}\n",
             self.plugins_off.iter().cloned().collect::<Vec<_>>().join(","),
             self.ui_zoom,
             one_line(&self.accent),
             self.corners,
             self.density,
-            one_line(&self.ui_font)
+            one_line(&self.ui_font),
+            self.preview_open.iter().cloned().collect::<Vec<_>>().join(",")
         ));
         extra.push_str(&format!(
             "ai_assist={}\nai_agent={}\nai_auto={}\nai_cli_full={}\nquickbar={}\nshow_preview={}\nterm_complete={}\nrestore_session={}\nicon_set={}\n",

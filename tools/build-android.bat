@@ -14,6 +14,11 @@ if not defined JAVA_HOME if exist "%ProgramFiles%\Android\Android Studio\jbr" se
 set "PATH=%JAVA_HOME%\bin;%PATH%"
 rem Signieren: eigener Schlüssel über CARGO_APK_RELEASE_KEYSTORE(_PASSWORD) – sonst der Debug-Schlüssel von
 rem Android Studio (reicht zum Installieren auf dem eigenen Gerät, nicht für den Play Store)
+rem Eigener Foldex-Schlüssel (nur auf dem Build-PC, nie ins Repo): foldex-release.jks + Passwort-Datei
+if not defined CARGO_APK_RELEASE_KEYSTORE if exist "%USERPROFILE%\.android\foldex-release.jks" if exist "%USERPROFILE%\.android\foldex-release-passwort.txt" (
+    set "CARGO_APK_RELEASE_KEYSTORE=%USERPROFILE%\.android\foldex-release.jks"
+    set /p CARGO_APK_RELEASE_KEYSTORE_PASSWORD=<"%USERPROFILE%\.android\foldex-release-passwort.txt"
+)
 if not defined CARGO_APK_RELEASE_KEYSTORE if exist "%USERPROFILE%\.android\debug.keystore" (
     set "CARGO_APK_RELEASE_KEYSTORE=%USERPROFILE%\.android\debug.keystore"
     set "CARGO_APK_RELEASE_KEYSTORE_PASSWORD=android"

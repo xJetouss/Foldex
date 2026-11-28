@@ -180,8 +180,17 @@ fn native_share(hwnd: isize, files: &[PathBuf], package: Option<&str>) -> Result
     }
 }
 
+/// Teilen-Menü des Systems (Windows-Teilen bzw. Android-Auswahl) direkt öffnen – ohne das Foldex-Fenster.
+pub fn system_share(hwnd: isize, files: &[PathBuf]) -> Result<(), String> {
+    let files: Vec<PathBuf> = files.iter().filter(|p| p.is_file()).cloned().collect();
+    if files.is_empty() {
+        return Err("Nur Dateien lassen sich teilen (Ordner vorher komprimieren)".into());
+    }
+    native_share(hwnd, &files, None)
+}
+
 /// Gibt es ein Teilen-Menü des Systems?
-const NATIVE_SHARE: bool = cfg!(windows) || cfg!(target_os = "android");
+pub const NATIVE_SHARE: bool = cfg!(windows) || cfg!(target_os = "android");
 
 /// Installierte Apps, über die geteilt werden kann (nur gefundene). Blockiert kurz – im Hintergrund aufrufen.
 #[allow(unreachable_code)]

@@ -431,13 +431,21 @@ impl ImageEditor {
         self.ai_poll(&ctx);
         self.upload(&ctx);
         let mut out = None;
+        // Handy (schmal): Einstellungen unter dem Bild statt rechts daneben, Kopfzeile nur mit Symbolen
+        let phone = rect.width() < 600.0;
         let top = Rect::from_min_size(rect.min, vec2(rect.width(), 46.0));
         let left = Rect::from_min_max(pos2(rect.left(), top.bottom()), pos2(rect.left() + 96.0, rect.bottom() - 26.0));
-        // rechte Spalte: am linken Rand ziehbar, die Zeichenfläche behält mindestens 240 px
-        let panel_w = self.panel_w.clamp(200.0, (rect.width() - 96.0 - 240.0).max(200.0));
-        let right = Rect::from_min_max(pos2(rect.right() - panel_w, top.bottom()), pos2(rect.right(), rect.bottom() - 26.0));
         let status = Rect::from_min_max(pos2(rect.left(), rect.bottom() - 26.0), rect.max);
-        let canvas = Rect::from_min_max(pos2(left.right(), top.bottom()), pos2(right.left(), status.top()));
+        let (right, canvas) = if phone {
+            let panel_h = (rect.height() * 0.42).max(220.0);
+            let right = Rect::from_min_max(pos2(left.right(), status.top() - panel_h), pos2(rect.right(), status.top()));
+            (right, Rect::from_min_max(pos2(left.right(), top.bottom()), pos2(rect.right(), right.top())))
+        } else {
+            // rechte Spalte: am linken Rand ziehbar, die Zeichenfläche behält mindestens 240 px
+            let panel_w = self.panel_w.clamp(200.0, (rect.width() - 96.0 - 240.0).max(200.0));
+            let right = Rect::from_min_max(pos2(rect.right() - panel_w, top.bottom()), pos2(rect.right(), rect.bottom() - 26.0));
+            (right, Rect::from_min_max(pos2(left.right(), top.bottom()), pos2(right.left(), status.top())))
+        };
         ui.painter().rect_filled(rect, 0.0, th.panel);
         if self.fit_next {
             self.fit(canvas);
@@ -448,13 +456,15 @@ impl ImageEditor {
         ui.allocate_new_ui(egui::UiBuilder::new().max_rect(top.shrink2(vec2(10.0, 8.0))), |ui| {
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
-                let name = self.path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-                ui.label(egui::RichText::new(name).strong());
-                if self.modified {
-                    ui.label(egui::RichText::new(" ●").color(th.accent)).on_hover_text("Ungespeicherte Änderungen");
+                if !phone {
+                    let name = self.path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+                    ui.label(egui::RichText::new(name).strong());
+                    if self.modified {
+                        ui.label(egui::RichText::new(" ●").color(th.accent)).on_hover_text("Ungespeicherte Änderungen");
+                    }
+                    ui.add_space(10.0);
+                    sep(ui, th);
                 }
-                ui.add_space(10.0);
-                sep(ui, th);
                 if edicons::btn(ui, th, E::Undo, "Rückgängig (Strg+Z)", !self.undo.is_empty()).clicked() {
                     self.undo();
                 }
@@ -465,14 +475,16 @@ impl ImageEditor {
                 if edicons::btn(ui, th, E::ZoomOut, "Verkleinern (Strg+−)", true).clicked() {
                     self.zoom_at(canvas, canvas.center(), 1.0 / 1.25);
                 }
-                ui.add_sized(vec2(48.0, 30.0), egui::Label::new(egui::RichText::new(format!("{:.0} %", self.zoom * 100.0)).monospace()));
+                if !phone {
+                    ui.add_sized(vec2(48.0, 30.0), egui::Label::new(egui::RichText::new(format!("{:.0} %", self.zoom * 100.0)).monospace()));
+                }
                 if edicons::btn(ui, th, E::ZoomIn, "Vergrößern (Strg++)", true).clicked() {
                     self.zoom_at(canvas, canvas.center(), 1.25);
                 }
                 if edicons::btn(ui, th, E::Fit, "Einpassen (Strg+0)", true).clicked() {
                     self.fit(canvas);
                 }
-                if edicons::btn(ui, th, E::Actual, "Originalgröße 100 % (Strg+1)", true).clicked() {
+                if !phone && edicons::btn(ui, th, E::Actual, "Originalgröße 100 % (Strg+1)", true).clicked() {
                     self.zoom = 1.0;
                     self.pan = Vec2::ZERO;
                 }
@@ -484,10 +496,10 @@ impl ImageEditor {
                 if edicons::btn(ui, th, E::RotR, "Nach rechts drehen", true).clicked() {
                     op = Some(image::imageops::rotate90);
                 }
-                if edicons::btn(ui, th, E::FlipH, "Horizontal spiegeln", true).clicked() {
+                if !phone && edicons::btn(ui, th, E::FlipH, "Horizontal spiegeln", true).clicked() {
                     op = Some(image::imageops::flip_horizontal);
                 }
-                if edicons::btn(ui, th, E::FlipV, "Vertikal spiegeln", true).clicked() {
+                if !phone && edicons::btn(ui, th, E::FlipV, "Vertikal spiegeln", true).clicked() {
                     op = Some(image::imageops::flip_vertical);
                 }
                 if let Some(op) = op {
@@ -501,7 +513,7 @@ impl ImageEditor {
                     if edicons::btn(ui, th, E::Close, if self.modified { "Schließen – ungespeicherte Änderungen gehen verloren" } else { "Schließen" }, true).clicked() {
                         out = Some(EditOut::Close);
                     }
-                    if edicons::labeled(ui, th, E::SaveAs, "Speichern unter", "Als neue Datei speichern", true, false).clicked() {
+                    if !cfg!(target_os = "android") && edicons::labeled(ui, th, E::SaveAs, "Speichern unter", "Als neue Datei speichern", true, false).clicked() {
                         if let Some(p) = rfd::FileDialog::new()
                             .set_directory(self.path.parent().unwrap_or(Path::new(".")))
                             .set_file_name(self.path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned()))
@@ -513,7 +525,8 @@ impl ImageEditor {
                             }
                         }
                     }
-                    if edicons::labeled(ui, th, E::Save, "Speichern", "Datei überschreiben (Strg+S)", self.modified, true).clicked() {
+                    let save = if phone { edicons::btn(ui, th, E::Save, "Speichern (Datei überschreiben)", self.modified) } else { edicons::labeled(ui, th, E::Save, "Speichern", "Datei überschreiben (Strg+S)", self.modified, true) };
+                    if save.clicked() {
                         let p = self.path.clone();
                         if let Some(o) = self.save(&p) {
                             out = Some(o);
@@ -545,7 +558,9 @@ impl ImageEditor {
         if let Some((err, m)) = &self.msg {
             ui.painter().text(status.right_center() - vec2(10.0, 0.0), egui::Align2::RIGHT_CENTER, m, egui::FontId::proportional(11.5), if *err { th.danger } else { th.accent });
         }
-        self.panel_grip(ui, th, right, rect);
+        if !phone {
+            self.panel_grip(ui, th, right, rect);
+        }
         self.ai_ask_popup(&ctx, th, rect);
         self.keys(ui, canvas, &mut out);
         out
@@ -668,6 +683,7 @@ impl ImageEditor {
     fn panel_ui(&mut self, ui: &mut egui::Ui, th: &Theme, r: Rect) {
         ui.painter().rect_filled(r, 0.0, th.bg);
         ui.painter().line_segment([r.left_top(), r.left_bottom()], Stroke::new(1.0, th.line));
+        ui.painter().line_segment([r.left_top(), r.right_top()], Stroke::new(1.0, th.line));
         ui.allocate_new_ui(egui::UiBuilder::new().max_rect(r.shrink2(vec2(12.0, 10.0))), |ui| {
             egui::ScrollArea::vertical().id_salt("imgedit_panel").auto_shrink([false, false]).show(ui, |ui| {
                 ui.set_width(ui.available_width() - 6.0);
@@ -676,14 +692,21 @@ impl ImageEditor {
                 ui.add_space(4.0);
                 self.histogram(ui, th);
                 ui.add_space(4.0);
-                section(ui, th, "img_txt", E::Sparkle, "KI-Bearbeitung (Text)", true, |ui| self.text_edit_ui(ui, th));
+                let ai = !cfg!(target_os = "android");
+                if ai {
+                    section(ui, th, "img_txt", E::Sparkle, "KI-Bearbeitung (Text)", true, |ui| self.text_edit_ui(ui, th));
+                }
                 section(ui, th, "img_adj", E::Sliders, "Anpassen", true, |ui| self.adjust_ui(ui, th));
                 section(ui, th, "img_flt", E::Sparkle, "Filter", false, |ui| {
                     self.filters_ui(ui);
-                    ui.add_space(6.0);
-                    self.ai_filters_ui(ui, th);
+                    if ai {
+                        ui.add_space(6.0);
+                        self.ai_filters_ui(ui, th);
+                    }
                 });
-                section(ui, th, "img_chain", E::Wand, "KI-Kette (kombinieren)", false, |ui| self.chain_ui(ui, th));
+                if ai {
+                    section(ui, th, "img_chain", E::Wand, "KI-Kette (kombinieren)", false, |ui| self.chain_ui(ui, th));
+                }
                 section(ui, th, "img_size", E::Resize, "Größe", false, |ui| self.image_ui(ui, th));
                 section(ui, th, "img_save", E::Save, "Speichern", false, |ui| {
                     ui.add(egui::Slider::new(&mut self.jpeg_q, 40..=100).text("JPEG-Qualität"));

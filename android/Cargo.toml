@@ -2,7 +2,7 @@
 # Bauen:  cd android && cargo apk build --release      (siehe tools/build-android.bat)
 [package]
 name = "foldex-android"
-version = "0.9.9"
+version = "0.9.10"
 edition = "2021"
 build = "../build.rs"
 publish = false
@@ -137,6 +137,9 @@ name = "android.permission.INTERNET"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.REQUEST_INSTALL_PACKAGES"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.VIBRATE"
 
 # Teilen: installierte Apps erkennen (Paket-Sichtbarkeit ab Android 11)
 [[package.metadata.android.queries.package]]

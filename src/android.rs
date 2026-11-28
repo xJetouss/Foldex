@@ -318,3 +318,89 @@ pub fn night_mode() -> Option<bool> {
     })
     .ok()
 }
+
+/// Text in die Android-Zwischenablage (egui kennt auf Android nur eine interne).
+pub fn set_clip_text(text: &str) -> Result<(), String> {
+    with_env(|env, activity| {
+        let svc = env.new_string("clipboard")?;
+        let cm = env.call_method(activity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", &[JValue::Object(&svc)])?.l()?;
+        let label = env.new_string("Foldex")?;
+        let t = env.new_string(text)?;
+        let clip = env.call_static_method("android/content/ClipData", "newPlainText", "(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Landroid/content/ClipData;", &[JValue::Object(&label), JValue::Object(&t)])?.l()?;
+        env.call_method(&cm, "setPrimaryClip", "(Landroid/content/ClipData;)V", &[JValue::Object(&clip)])?;
+        Ok(())
+    })
+}
+
+/// Datei (z. B. ein Bild) in die Android-Zwischenablage – als MediaStore-Adresse, zum Einfügen in andere Apps.
+pub fn set_clip_file(path: &std::path::Path, mime: &str) -> Result<(), String> {
+    with_env(|env, activity| {
+        let uris = content_uris(env, activity, &[path.to_string_lossy().into_owned()], mime)?;
+        let Some(uri) = uris.into_iter().next() else { return Ok(()) };
+        let svc = env.new_string("clipboard")?;
+        let cm = env.call_method(activity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", &[JValue::Object(&svc)])?.l()?;
+        let cr = env.call_method(activity, "getContentResolver", "()Landroid/content/ContentResolver;", &[])?.l()?;
+        let label = env.new_string("Foldex")?;
+        let clip = env.call_static_method("android/content/ClipData", "newUri", "(Landroid/content/ContentResolver;Ljava/lang/CharSequence;Landroid/net/Uri;)Landroid/content/ClipData;", &[JValue::Object(&cr), JValue::Object(&label), JValue::Object(&uri)])?.l()?;
+        env.call_method(&cm, "setPrimaryClip", "(Landroid/content/ClipData;)V", &[JValue::Object(&clip)])?;
+        Ok(())
+    })
+}
+
+/// MIME-Typ zur Endung (Android-Liste), sonst `*/*`.
+pub fn mime_of(path: &std::path::Path) -> String {
+    let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    if ext == "apk" {
+        return "application/vnd.android.package-archive".into();
+    }
+    with_env(|env, _| {
+        let map = env.call_static_method("android/webkit/MimeTypeMap", "getSingleton", "()Landroid/webkit/MimeTypeMap;", &[])?.l()?;
+        let e = env.new_string(&ext)?;
+        let m = env.call_method(&map, "getMimeTypeFromExtension", "(Ljava/lang/String;)Ljava/lang/String;", &[JValue::Object(&e)])?.l()?;
+        if m.is_null() {
+            return Ok("*/*".to_string());
+        }
+        let js = jni::objects::JString::from(m);
+        let s: String = env.get_string(&js)?.into();
+        Ok(s)
+    })
+    .unwrap_or_else(|_| "*/*".into())
+}
+
+/// Datei in einer anderen App öffnen (APK: Installation). `chooser` = immer die App-Auswahl zeigen.
+pub fn view(path: &std::path::Path, chooser: bool) -> Result<(), String> {
+    let mime = mime_of(path);
+    with_env(|env, activity| {
+        let b = env.new_object("android/os/StrictMode$VmPolicy$Builder", "()V", &[])?;
+        let pol = env.call_method(&b, "build", "()Landroid/os/StrictMode$VmPolicy;", &[])?.l()?;
+        env.call_static_method("android/os/StrictMode", "setVmPolicy", "(Landroid/os/StrictMode$VmPolicy;)V", &[JValue::Object(&pol)])?;
+        let uri = content_uris(env, activity, &[path.to_string_lossy().into_owned()], &mime)?.remove(0);
+        let action = env.new_string("android.intent.action.VIEW")?;
+        let intent = env.new_object("android/content/Intent", "(Ljava/lang/String;)V", &[JValue::Object(&action)])?;
+        let jm = env.new_string(&mime)?;
+        env.call_method(&intent, "setDataAndType", "(Landroid/net/Uri;Ljava/lang/String;)Landroid/content/Intent;", &[JValue::Object(&uri), JValue::Object(&jm)])?;
+        env.call_method(&intent, "addFlags", "(I)Landroid/content/Intent;", &[JValue::Int(1)])?; // Lesen erlauben
+        let start = if chooser {
+            let title = env.new_string("Öffnen mit")?;
+            env.call_static_method("android/content/Intent", "createChooser", "(Landroid/content/Intent;Ljava/lang/CharSequence;)Landroid/content/Intent;", &[JValue::Object(&intent), JValue::Object(&title)])?.l()?
+        } else {
+            intent
+        };
+        env.call_method(activity, "startActivity", "(Landroid/content/Intent;)V", &[JValue::Object(&start)])?;
+        Ok(())
+    })
+}
+
+/// Kurz vibrieren (Rückmeldung bei langem Drücken).
+pub fn vibrate(ms: i64) {
+    let _ = with_env(|env, activity| {
+        let svc = env.new_string("vibrator")?;
+        let v = env.call_method(activity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", &[JValue::Object(&svc)])?.l()?;
+        if v.is_null() {
+            return Ok(());
+        }
+        let effect = env.call_static_method("android/os/VibrationEffect", "createOneShot", "(JI)Landroid/os/VibrationEffect;", &[JValue::Long(ms), JValue::Int(-1)])?.l()?;
+        env.call_method(&v, "vibrate", "(Landroid/os/VibrationEffect;)V", &[JValue::Object(&effect)])?;
+        Ok(())
+    });
+}

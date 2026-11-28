@@ -272,6 +272,38 @@ fn catalog_row(ui: &mut egui::Ui, th: Theme, icon: Option<&egui::TextureHandle>,
     ui.add_space(6.0);
 }
 
+/// Dateiarten für „In der Vorschau öffnen“: (Schlüssel, Name)
+const OPEN_KINDS: [(&str, &str); 8] = [
+    ("image", "Bilder"),
+    ("video", "Videos"),
+    ("audio", "Musik und Audio"),
+    ("pdf", "PDF"),
+    ("text", "Text und Code"),
+    ("archive", "Archive (ZIP, 7z …)"),
+    ("apk", "APK (Android-Apps)"),
+    ("office", "Office-Dokumente"),
+];
+
+/// Dateiart einer Datei für „In der Vorschau öffnen“ (Schlüssel aus OPEN_KINDS, sonst „other“)
+fn open_kind(p: &Path) -> &'static str {
+    let e = convert::ext_of(p);
+    match e.as_str() {
+        "pdf" => return "pdf",
+        "apk" | "xapk" | "apks" => return "apk",
+        "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp" | "rtf" => return "office",
+        _ => {}
+    }
+    match convert::class_of(p) {
+        convert::Class::Image => "image",
+        convert::Class::Video => "video",
+        convert::Class::Audio => "audio",
+        convert::Class::Text => "text",
+        convert::Class::Archive => "archive",
+        convert::Class::Document => "office",
+        convert::Class::Other => "other",
+    }
+}
+
 /// Hauptknopf eines Fensters (Akzentfarbe), gleich groß wie die übrigen Knöpfe.
 fn primary_button(th: &Theme, text: &str) -> egui::Button<'static> {
     egui::Button::new(egui::RichText::new(text.to_string()).strong().color(if th.dark { th.bg } else { Color32::WHITE }))
@@ -357,8 +389,19 @@ fn apply_look(ctx: &egui::Context, st: &Settings) {
     }
 }
 
+/// Schriften zur Auswahl (Android: Systemschriften)
+#[cfg(target_os = "android")]
+const UI_FONTS: &[(&str, &str)] = &[
+    ("Roboto (Standard)", ""),
+    ("Noto Serif", "/system/fonts/NotoSerif-Regular.ttf"),
+    ("Droid Sans Mono", "/system/fonts/DroidSansMono.ttf"),
+    ("Cutive Mono", "/system/fonts/CutiveMono.ttf"),
+    ("Coming Soon", "/system/fonts/ComingSoon.ttf"),
+];
+
 /// Schriften zur Auswahl (Windows): (Name, Datei)
-const UI_FONTS: [(&str, &str); 8] = [
+#[cfg(not(target_os = "android"))]
+const UI_FONTS: &[(&str, &str)] = &[
     ("Segoe UI (Standard)", ""),
     ("Arial", r"C:\Windows\Fonts\arial.ttf"),
     ("Calibri", r"C:\Windows\Fonts\calibri.ttf"),
@@ -584,6 +627,8 @@ enum Act {
     InstallFfmpeg,
     /// eigenes Teilen-Fenster (LocalSend, Uploads, Messenger)
     Share(Vec<PathBuf>),
+    /// Teilen-Menü von Windows bzw. Android
+    ShareSystem(Vec<PathBuf>),
     /// Datei in ein anderes Format umwandeln (neue Datei neben dem Original)
     Convert(PathBuf, String),
     /// mehrere Dateien in dasselbe Zielformat
@@ -1337,6 +1382,10 @@ struct App {
     settings_menu: bool,
     /// Android: ganzer Bildschirm (mit Status- und Gestenleiste) – dort wird der Hintergrund gemalt
     full_rect: Option<Rect>,
+    /// rechter Rand der Seitenleiste (Handy: Tippen daneben schließt sie)
+    side_right: f32,
+    /// für dieses lange Drücken schon vibriert
+    long_buzzed: bool,
     /// Handy: Aktionsfeld unten nach langem Drücken (Einträge bzw. leere Stelle = leere Liste)
     sheet: Option<Vec<PathBuf>>,
     /// Einstellungen: Befehl, dessen Tastenkürzel gerade aufgenommen wird; ggf. Konflikt
@@ -1657,6 +1706,8 @@ impl App {
             close_menu_req: false,
             settings_menu: true,
             full_rect: None,
+            side_right: 0.0,
+            long_buzzed: false,
             sheet: None,
             key_rec: None,
             key_conflict: None,
@@ -3088,19 +3139,38 @@ impl App {
 
     fn apply(&mut self, a: Act) {
         match a {
-            Act::Go(p) => self.nav(p),
+            Act::Go(p) => {
+                // Handy: Seitenleiste nach dem Ordnerwechsel schließen (sie verdeckt sonst die Liste)
+                if cfg!(target_os = "android") && self.side_visible {
+                    self.side_visible = false;
+                }
+                self.nav(p)
+            }
             Act::OpenFile(p) => {
-                if cfg!(target_os = "android") {
+                // Einstellung „In der Vorschau öffnen“ je Dateiart, sonst die Standard-App des Systems
+                if self.st.preview_open.contains(open_kind(&p)) {
                     self.open_view(p);
                 } else {
+                    #[cfg(target_os = "android")]
+                    if let Err(e) = android::view(&p, false) {
+                        // keine App für diese Datei: dann eben die Vorschau
+                        self.status = format!("Keine App zum Öffnen gefunden ({e}) – Vorschau");
+                        self.open_view(p);
+                    }
+                    #[cfg(not(target_os = "android"))]
                     open_detached(p);
+                }
+            }
+            Act::ShareSystem(paths) => {
+                if let Err(e) = share::system_share(self.hwnd, &paths) {
+                    self.status = format!("Teilen: {e}");
                 }
             }
             Act::Open(p) => {
                 if fsx::is_dir(&p) {
                     self.nav(p);
                 } else if fsx::exists(&p) {
-                    open_detached(p);
+                    self.apply(Act::OpenFile(p));
                 } else {
                     self.status = format!("Pfad nicht gefunden: {}", p.display());
                 }
@@ -3253,7 +3323,12 @@ impl App {
                 pn.crumb_focus = true;
             }
             Act::FocusSearch => self.pane_mut().focus_search = true,
-            Act::CopyText(t) => self.ctx.copy_text(t),
+            Act::CopyText(t) => {
+                #[cfg(target_os = "android")]
+                let _ = android::set_clip_text(&t);
+                self.ctx.copy_text(t);
+                self.status = "In die Zwischenablage kopiert".into();
+            }
             Act::Pin(p) => {
                 if self.side.pin(&p) {
                     self.status = "An Schnellzugriff angeheftet".into();
@@ -3833,7 +3908,12 @@ impl App {
                 }
             }
             Act::OpenWith(p) => {
-                if let Err(e) = editors::open_with_dialog(&p) {
+                // Android: App-Auswahl des Systems
+                #[cfg(target_os = "android")]
+                let r = android::view(&p, true);
+                #[cfg(not(target_os = "android"))]
+                let r = editors::open_with_dialog(&p);
+                if let Err(e) = r {
                     self.status = format!("„Öffnen mit“ fehlgeschlagen: {e}");
                 }
             }
@@ -8954,13 +9034,22 @@ impl App {
         } else {
             let first = paths[0].clone();
             tiles.push((Ic::Open, "Öffnen", single.then(|| if dir { Act::Go(first.clone()) } else { Act::OpenFile(first.clone()) })));
-            tiles.push((Ic::Share, "Teilen", paths.iter().any(|p| fsx::is_file(p)).then(|| Act::Share(paths.clone()))));
+            let files_any = paths.iter().any(|p| fsx::is_file(p));
+            tiles.push((Ic::Spark, "Foldex-Teilen", files_any.then(|| Act::Share(paths.clone()))));
+            tiles.push((Ic::Share, if cfg!(target_os = "android") { "Android-Teilen" } else { "System-Teilen" }, (files_any && share::NATIVE_SHARE).then(|| Act::ShareSystem(paths.clone()))));
             tiles.push((Ic::Copy, "Kopieren", Some(Act::SetClip(paths.clone(), false))));
             tiles.push((Ic::Cut, "Verschieben", Some(Act::SetClip(paths.clone(), true))));
             tiles.push((Ic::Rename, "Umbenennen", single.then_some(Act::Rename)));
             tiles.push((Ic::Trash, "Löschen", Some(Act::DeletePerm(paths.clone()))));
             tiles.push((Ic::Info, "Eigenschaften", single.then(|| Act::Props(first.clone()))));
-            tiles.push((Ic::Download, "Als ZIP", Some(Act::Compress(paths.clone(), Format::Zip))));
+
+            if single && !dir {
+                rows.push((Ic::Open, "Öffnen mit …".into(), Some(Act::OpenWith(first.clone()))));
+                let (in_pv, kind) = (self.st.preview_open.contains(open_kind(&first)), open_kind(&first));
+                if kind != "other" {
+                    rows.push((Ic::Eye, if in_pv { "In anderer App öffnen".into() } else { "In der Vorschau öffnen".into() }, Some(if in_pv { Act::OpenWith(first.clone()) } else { Act::Preview(first.clone()) })));
+                }
+            }
             if dir && can_paste {
                 rows.push((Ic::Paste, "Hier einfügen".into(), Some(Act::PasteInto(first.clone()))));
             }
@@ -8983,6 +9072,7 @@ impl App {
                     rows.push((Ic::Refresh, format!("Umwandeln in .{t}"), Some(a)));
                 }
             }
+            rows.push((Ic::Download, "Als ZIP komprimieren".into(), Some(Act::Compress(paths.clone(), Format::Zip))));
             rows.push((Ic::Copy, "Pfad kopieren".into(), Some(Act::CopyText(paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join("\n")))));
         }
         // Plugin-Befehle
@@ -9088,6 +9178,18 @@ impl App {
         } else if self.plugin_out.is_some() || self.plugin_ask.is_some() {
             self.plugin_out = None;
             self.plugin_ask = None;
+        } else if self.props.is_some() {
+            self.props = None;
+        } else if self.confirm_del.is_some() {
+            self.confirm_del = None;
+        } else if self.side_rename.is_some() {
+            self.side_rename = None;
+        } else if self.pane().rename.is_some() {
+            self.pane_mut().rename = None;
+        } else if self.imggen.is_some() {
+            self.imggen = None;
+        } else if !self.summaries.is_empty() {
+            self.summaries.pop();
         } else if self.show_settings && narrow(ctx) && !self.settings_menu {
             self.settings_menu = true;
         } else if self.show_settings {
@@ -9537,8 +9639,11 @@ impl App {
                 acts.push(Act::TransferOther(paths.clone(), false));
             }
         }
-        if menu_item(ui, "Teilen …", &self.keymap.label("file.share"), paths.iter().any(|p| fsx::is_file(&p))) {
+        if menu_item(ui, "Mit Foldex teilen …", &self.keymap.label("file.share"), paths.iter().any(|p| fsx::is_file(&p))) {
             acts.push(Act::Share(paths.clone()));
+        }
+        if share::NATIVE_SHARE && menu_item(ui, if cfg!(target_os = "android") { "Mit Android teilen …" } else { "Mit Windows teilen …" }, "", paths.iter().any(|p| fsx::is_file(&p))) {
+            acts.push(Act::ShareSystem(paths.clone()));
         }
         // nur bei Formaten, die sich drucken lassen
         if paths.iter().any(|p| !fsx::is_dir(p) && print::supported(p)) && menu_item(ui, "Drucken", &self.keymap.label("file.print"), true) {
@@ -10047,7 +10152,9 @@ impl App {
                 format!("{label} ({k})")
             }
         };
-        let visible: Vec<String> = st.quickbar.iter().filter(|q| q.1).map(|q| q.0.clone()).collect();
+        // Android: kein Terminal, keine KI-Agenten, kein Git, kein Dual-Panel
+        const NOT_ON_ANDROID: [&str; 4] = ["terminal", "git", "ai", "split"];
+        let visible: Vec<String> = st.quickbar.iter().filter(|q| q.1 && !(cfg!(target_os = "android") && NOT_ON_ANDROID.contains(&q.0.as_str()))).map(|q| q.0.clone()).collect();
         egui::ScrollArea::horizontal()
             .id_salt("cmdbar")
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
@@ -10742,7 +10849,7 @@ impl App {
             text.push_str("  –  Index wird aufgebaut, weitere Treffer folgen automatisch");
         }
         ui.painter()
-            .with_clip_rect(brect.shrink2(vec2(40.0, 0.0)))
+            .with_clip_rect(Rect::from_min_max(brect.min, pos2(brect.right() - 40.0, brect.bottom())))
             .text(
                 pos2(brect.left() + 14.0, brect.center().y),
                 Align2::LEFT_CENTER,
@@ -10761,8 +10868,10 @@ impl App {
         }
         let (hrect, _) = ui.allocate_exact_size(vec2(ui.available_width(), HEAD_H), Sense::hover());
         let right = hrect.right() - 12.0;
-        let folder_l = hrect.left() + (hrect.width() * 0.42).max(220.0);
-        let type_l = (right - 190.0).max(folder_l + 60.0);
+        // schmal (Handy): ohne Spalte „Typ“, mehr Platz für den Namen
+        let slim = hrect.width() < 520.0;
+        let folder_l = if slim { hrect.left() + hrect.width() * 0.58 } else { hrect.left() + (hrect.width() * 0.42).max(220.0) };
+        let type_l = if slim { right + 60.0 } else { (right - 190.0).max(folder_l + 60.0) };
         for (t, x) in [
             ("Name", hrect.left() + 12.0),
             ("Ordner", folder_l),
@@ -11220,19 +11329,28 @@ impl App {
         if let Some(p) = &self.props {
             let sub = self.th.sub;
             let mut open = true;
+            let mut act: Option<Act> = None;
+            // feste Breite (Handy: Bildschirmbreite), lange Namen und Pfade umbrechen
+            let w = (ctx.screen_rect().width() - 48.0).min(460.0);
             egui::Window::new("Eigenschaften")
                 .open(&mut open)
                 .collapsible(false)
                 .resizable(false)
                 .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .fixed_size([w, 0.0])
                 .show(ctx, |ui| {
+                    let key_w = 84.0;
                     egui::Grid::new("props")
                         .num_columns(2)
-                        .spacing([16.0, 6.0])
+                        .spacing([12.0, 8.0])
+                        .max_col_width(w - key_w - 12.0)
                         .show(ui, |ui| {
                             let row = |ui: &mut egui::Ui, k: &str, v: String| {
-                                ui.label(egui::RichText::new(k).color(sub));
-                                ui.label(v);
+                                if v.is_empty() {
+                                    return;
+                                }
+                                ui.allocate_ui_with_layout(vec2(key_w, 18.0), egui::Layout::left_to_right(egui::Align::Center), |ui| ui.label(egui::RichText::new(k).color(sub)));
+                                ui.add(egui::Label::new(v).wrap());
                                 ui.end_row();
                             };
                             row(ui, "Name", p.name.clone());
@@ -11264,11 +11382,24 @@ impl App {
                             row(ui, "Erstellt", p.created.clone());
                             row(ui, "Geändert", p.modified.clone());
                         });
+                    ui.add_space(10.0);
+                    ui.horizontal_wrapped(|ui| {
+                        let h = if cfg!(target_os = "android") { 40.0 } else { 28.0 };
+                        if ui.add(egui::Button::new("Öffnen").min_size(vec2(90.0, h))).clicked() {
+                            act = Some(if p.is_dir { Act::Go(p.path.clone()) } else { Act::OpenFile(p.path.clone()) });
+                        }
+                        if ui.add(egui::Button::new("Pfad kopieren").min_size(vec2(110.0, h))).clicked() {
+                            act = Some(Act::CopyText(p.path.display().to_string()));
+                        }
+                    });
                 });
             if !p.done.load(Relaxed) {
                 ctx.request_repaint_after(Duration::from_millis(150));
             }
-            close = !open;
+            close = !open || act.is_some();
+            if let Some(a) = act {
+                self.apply(a);
+            }
         }
         if close {
             self.props = None;
@@ -11898,12 +12029,12 @@ impl App {
                                 Path::new(&st.ui_font).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
                             });
                             egui::ComboBox::from_id_salt("ui_font").selected_text(cur).width(190.0).show_ui(ui, |ui| {
-                                for (name, file) in UI_FONTS {
+                                for &(name, file) in UI_FONTS {
                                     if (file.is_empty() || Path::new(file).is_file()) && ui.selectable_label(st.ui_font == file, name).clicked() {
                                         st.ui_font = file.to_string();
                                     }
                                 }
-                                if ui.selectable_label(false, "Eigene Schriftdatei …").clicked() {
+                                if !cfg!(target_os = "android") && ui.selectable_label(false, "Eigene Schriftdatei …").clicked() {
                                     if let Some(f) = rfd::FileDialog::new().add_filter("Schrift", &["ttf", "otf"]).pick_file() {
                                         st.ui_font = f.display().to_string();
                                     }
@@ -12047,6 +12178,31 @@ impl App {
                         setting_row(ui, th, "Versteckte Dateien", "Versteckte Dateien und Ordner anzeigen", |ui| {
                             toggle_switch(ui, th, at, &mut st.show_hidden);
                         });
+                        setting_row(
+                            ui,
+                            th,
+                            "In der Vorschau öffnen",
+                            if cfg!(target_os = "android") { "Diese Dateiarten zeigt Foldex selbst – alle anderen öffnet die passende App" } else { "Diese Dateiarten zeigt Foldex selbst – alle anderen öffnet das Standardprogramm" },
+                            |_| {},
+                        );
+                        ui.horizontal_wrapped(|ui| {
+                            ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
+                            for (key, name) in OPEN_KINDS {
+                                let on = st.preview_open.contains(key);
+                                let b = egui::Button::new(egui::RichText::new(name).color(if on { Color32::WHITE } else { th.text }))
+                                    .fill(if on { th.accent } else { th.field })
+                                    .rounding(14.0)
+                                    .min_size(vec2(0.0, if cfg!(target_os = "android") { 38.0 } else { 28.0 }));
+                                if ui.add(b).clicked() {
+                                    if on {
+                                        st.preview_open.remove(key);
+                                    } else {
+                                        st.preview_open.insert(key.to_string());
+                                    }
+                                }
+                            }
+                        });
+                        ui.add_space(8.0);
                         if cfg!(windows) {
                             setting_row(ui, th, "Geschützte Systemdateien", "Nur für Fortgeschrittene", |ui| {
                                 toggle_switch(ui, th, at, &mut st.show_system);
@@ -14011,6 +14167,32 @@ impl eframe::App for App {
         if cfg!(target_os = "android") && ctx.input(|i| i.key_pressed(Key::F35)) {
             self.back_key(ctx);
         }
+        // Android: kurz vibrieren, sobald ein langes Drücken erkannt ist (egui löst dann das Aktionsfeld bzw. Menü aus)
+        #[cfg(target_os = "android")]
+        {
+            // wie egui: 0,8 s gedrückt, ohne zu ziehen
+            let (long, down) = ctx.input(|i| {
+                let held = i.pointer.press_start_time().map_or(0.0, |t| i.time - t);
+                (i.pointer.any_down() && held >= 0.8 && i.pointer.press_origin().zip(i.pointer.latest_pos()).is_some_and(|(a, b)| a.distance(b) < 8.0), i.pointer.any_down())
+            });
+            if down && !self.long_buzzed {
+                ctx.request_repaint_after(Duration::from_millis(100));
+            }
+            if long && !self.long_buzzed {
+                android::vibrate(25);
+                self.long_buzzed = true;
+            } else if !down {
+                self.long_buzzed = false;
+            }
+            // Tippen neben der offenen Seitenleiste schließt sie (Handy)
+            if self.side_visible && narrow(ctx) {
+                if let Some(p) = ctx.input(|i| if i.pointer.any_pressed() { i.pointer.interact_pos() } else { None }) {
+                    if p.x > self.side_right && p.y > 60.0 {
+                        self.side_visible = false;
+                    }
+                }
+            }
+        }
         // Android: hinter Statusleiste, Gestenleiste und Rändern die App-Farbe (kein schwarzer Balken)
         if let Some(full) = self.full_rect.filter(|_| cfg!(target_os = "android")) {
             ctx.layer_painter(egui::LayerId::background()).with_clip_rect(full).rect_filled(full, 0.0, self.th.bg);
@@ -14065,7 +14247,7 @@ impl eframe::App for App {
             )
             .show(ctx, |ui| self.ui_status(ui));
         prof::mark("tabs+status");
-        egui::SidePanel::left("side")
+        let side_resp = egui::SidePanel::left("side")
             .frame(
                 egui::Frame::none()
                     .fill(th.panel)
@@ -14075,6 +14257,7 @@ impl eframe::App for App {
             .default_width(250.0)
             .width_range(160.0..=420.0)
             .show_animated(ctx, self.side_visible, |ui| self.ui_sidebar(ui, &mut acts));
+        self.side_right = side_resp.map_or(0.0, |r| r.response.rect.right());
         prof::mark("sidebar");
         self.take_screenshots(ctx);
         self.ui_editor_ai(ctx, &mut acts);
@@ -14111,6 +14294,14 @@ impl eframe::App for App {
         self.ui_rules(ctx);
         self.ui_plugins(ctx);
         self.ui_sheet(ctx, &mut acts);
+        // Android: was egui kopiert (Pfad, Text, Namen …), auch in die System-Zwischenablage
+        #[cfg(target_os = "android")]
+        {
+            let copied = ctx.output(|o| o.copied_text.clone());
+            if !copied.is_empty() {
+                let _ = android::set_clip_text(&copied);
+            }
+        }
         if plugins::take_reload() {
             acts.push(Act::PluginsReload);
         }

@@ -39,10 +39,18 @@ copy /y "target\release\foldex.exe" "%DIST%\foldex.exe" >nul || goto :err
 
 echo [3/4] Windows-Installer (Foldex-Installer.exe) wird erstellt ...
 rem Quelltext: installer\Installer.cs (C#, mit dem bei Windows mitgelieferten Compiler)
->"%VERCS%" echo static class Ver { public const string Value = "%VER%"; }
+>"%VERCS%" echo [assembly: System.Reflection.AssemblyTitle("Foldex Installer")]
+>>"%VERCS%" echo [assembly: System.Reflection.AssemblyDescription("Installiert Foldex, den Datei-Explorer, fuer den angemeldeten Benutzer")]
+>>"%VERCS%" echo [assembly: System.Reflection.AssemblyCompany("Foldex")]
+>>"%VERCS%" echo [assembly: System.Reflection.AssemblyProduct("Foldex")]
+>>"%VERCS%" echo [assembly: System.Reflection.AssemblyCopyright("Foldex - foldex.tssnt.dev")]
+>>"%VERCS%" echo [assembly: System.Reflection.AssemblyVersion("%VER%.0")]
+>>"%VERCS%" echo [assembly: System.Reflection.AssemblyFileVersion("%VER%.0")]
+>>"%VERCS%" echo [assembly: System.Reflection.AssemblyInformationalVersion("%VER%")]
+>>"%VERCS%" echo static class Ver { public const string Value = "%VER%"; }
 if not exist "%CSC%" set "CSC=%WINDIR%\Microsoft.NET\Framework\v4.0.30319\csc.exe"
 if not exist "%CSC%" goto :cscfehler
-"%CSC%" /nologo /target:winexe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll /win32icon:"%CD%\assets\app.ico" /resource:"%CD%\assets\app.ico",app.ico /out:"%SETUP%" "installer\Installer.cs" "%VERCS%"
+"%CSC%" /nologo /target:winexe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll /win32icon:"%CD%\assets\app.ico" /win32manifest:"%CD%\installer\Installer.manifest" /resource:"%CD%\assets\app.ico",app.ico /out:"%SETUP%" "installer\Installer.cs" "%VERCS%"
 if errorlevel 1 goto :cscfehler
 del "%VERCS%" >nul 2>&1
 rem Nutzdaten anhaengen: Markierung + Laenge (16 Hex-Zeichen) + foldex.exe

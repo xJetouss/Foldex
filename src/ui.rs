@@ -533,8 +533,11 @@ pub fn sep_v(ui: &mut Ui, th: &Theme) {
 /// Menüeintrag: Symbol bzw. Häkchen links, Text, Tastenkürzel rechts. Schließt das Menü beim Klick.
 pub fn menu_entry(ui: &mut Ui, ic: Option<Ic>, label: &str, shortcut: &str, enabled: bool, checked: bool) -> bool {
     let th = theme(ui);
-    let w = ui.available_width().max(250.0);
-    let (rect, resp) = ui.allocate_exact_size(vec2(w, 30.0), if enabled { Sense::click() } else { Sense::hover() });
+    // Handy: keine Tastenkürzel, höhere Zeilen zum Tippen
+    let phone = cfg!(target_os = "android");
+    let shortcut = if phone { "" } else { shortcut };
+    let w = ui.available_width().max(if phone { 220.0 } else { 250.0 });
+    let (rect, resp) = ui.allocate_exact_size(vec2(w, if phone { 44.0 } else { 30.0 }), if enabled { Sense::click() } else { Sense::hover() });
     if enabled && resp.hovered() {
         ui.painter().rect_filled(rect.shrink2(vec2(2.0, 1.0)), Rounding::same(5.0), th.hover);
     }

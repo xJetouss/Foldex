@@ -150,6 +150,10 @@ fn set_note(note: &std::sync::Mutex<Option<(String, std::time::Instant)>>, msg: 
 /// Bild in die Zwischenablage (im Hintergrund, Rückmeldung über `note`).
 fn copy_image_bg(p: PathBuf, note: Arc<std::sync::Mutex<Option<(String, std::time::Instant)>>>, ctx: egui::Context) {
     std::thread::spawn(move || {
+        // Android: die Datei selbst (Adresse) in die Zwischenablage – andere Apps fügen sie als Bild ein
+        #[cfg(target_os = "android")]
+        let r = crate::android::set_clip_file(&p, "image/*");
+        #[cfg(not(target_os = "android"))]
         let r = convert::load_image(&p, 2048).and_then(|img| crate::clip::set_image(&img));
         if let Ok(mut n) = note.lock() {
             *n = Some((if r.is_ok() { "Bild kopiert".into() } else { format!("Kopieren fehlgeschlagen: {}", r.err().unwrap_or_default()) }, std::time::Instant::now()));
@@ -917,7 +921,8 @@ impl Preview {
                     // Zoom-Wunsch aus den Knöpfen: Faktor, 0 = einpassen
                     let mut zoom_req: Option<f32> = None;
                     ui.horizontal(|ui| {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let layout = if ui.available_width() < 520.0 { egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true) } else { egui::Layout::right_to_left(egui::Align::Center) };
+                        ui.with_layout(layout, |ui| {
                             // Bildeditor nur im großen Preview (eigener Tab)
                             if self.big && std::mem::take(&mut self.want_editor) {
                                 match crate::imgedit::ImageEditor::open(&p) {
